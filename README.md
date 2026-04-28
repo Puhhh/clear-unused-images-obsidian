@@ -1,6 +1,6 @@
-# clear-unused-images
+# Clear Unused Images
 
-`clear-unused-images` is a fork of [`oz-clear-unused-images`](https://github.com/ozntel/oz-clear-unused-images-obsidian).
+`Clear Unused Images` is a fork of [`oz-clear-unused-images`](https://github.com/ozntel/oz-clear-unused-images-obsidian).
 
 The current fork is maintained by [Aleksei Blinov](https://github.com/Puhhh). The original plugin author is [Ozan](https://www.ozan.pl).
 
