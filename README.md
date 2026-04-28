@@ -37,6 +37,8 @@ You can enable automatic cleanup during vault startup with the `Clean Images On 
 
 ### Clean Images Every X Minutes
 
+![cleanup-interval](images/cleanup-interval.png)
+
 You can also enable recurring automatic cleanup with the `Clean Images Every X Minutes` setting.
 
 - The periodic timer only runs image cleanup while Obsidian stays open.
@@ -78,13 +80,6 @@ If all images are used, you will see the following message:
 ![nothing-deleted](images/nothing-deleted.png)
 
 **Scanned Image Formats** : jpg, jpeg, png, gif, svg, bmp, webp
-
-## Planned Features
-
--   [x] Creating settings for users to select the destination of the deleted files
--   [x] Excluded folders settings for the scan
--   [x] Images to be cleaned during load of the vault if users chooses.
--   [x] Images to be cleaned every X minutes depending on user's choice
 
 ## Support
 
