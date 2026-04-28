@@ -1,6 +1,6 @@
 {
     "name": "clear-unused-images",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "Fork of oz-clear-unused-images for clearing unused images from Obsidian vaults.",
     "main": "main.js",
     "scripts": {

@@ -3,12 +3,15 @@ import { OzanClearImagesSettingsTab } from './settings';
 import { OzanClearImagesSettings, DEFAULT_SETTINGS } from './settings';
 import { LogsModal } from './modals';
 import * as Util from './util';
-import { createVaultLoadCleanupScheduler } from './startupCleanup';
+import { createPeriodicCleanupScheduler, createVaultLoadCleanupScheduler } from './startupCleanup';
 
 export default class OzanClearImages extends Plugin {
     settings: OzanClearImagesSettings;
     ribbonIconEl: HTMLElement | undefined = undefined;
     startupCleanupScheduled = false;
+    periodicCleanupTimerId: number | undefined = undefined;
+    periodicCleanupScheduler: ReturnType<typeof createPeriodicCleanupScheduler<number>> | undefined = undefined;
+    cleanupInProgress = false;
 
     async onload() {
         console.log('Clear Unused Images plugin loaded...');
@@ -26,9 +29,11 @@ export default class OzanClearImages extends Plugin {
         });
         this.refreshIconRibbon();
         this.scheduleVaultLoadCleanup();
+        this.refreshPeriodicCleanup();
     }
 
     onunload() {
+        this.clearPeriodicCleanupTimer();
         console.log('Clear Unused Images plugin unloaded...');
     }
 
@@ -69,8 +74,67 @@ export default class OzanClearImages extends Plugin {
         void scheduleCleanup(this.settings.autoCleanOnVaultLoad);
     }
 
+    refreshPeriodicCleanup(): void {
+        if (!this.periodicCleanupScheduler) {
+            this.periodicCleanupScheduler = createPeriodicCleanupScheduler<number>(
+                (callback) => {
+                    this.app.workspace.onLayoutReady(callback);
+                },
+                (callback, intervalMs) => {
+                    this.clearPeriodicCleanupTimer();
+                    const timerId = window.setInterval(callback, intervalMs);
+                    this.periodicCleanupTimerId = timerId;
+                    return timerId;
+                },
+                (timerId) => {
+                    window.clearInterval(timerId);
+                    if (this.periodicCleanupTimerId === timerId) {
+                        this.periodicCleanupTimerId = undefined;
+                    }
+                },
+                async (type) => {
+                    await this.clearUnusedAttachments(type, { silentIfBusy: true });
+                }
+            );
+        }
+
+        this.periodicCleanupScheduler({
+            enabled: this.settings.autoCleanEveryXMinutes,
+            intervalMinutes: this.settings.autoCleanIntervalMinutes,
+            canRunCleanup: () => {
+                if (this.settings.deleteOption === 'permanent') {
+                    return false;
+                }
+
+                return true;
+            },
+        });
+
+        if (this.settings.autoCleanEveryXMinutes && this.settings.deleteOption === 'permanent') {
+            new Notice('Periodic cleanup is disabled while Permanently Delete is selected.');
+        }
+    }
+
+    clearPeriodicCleanupTimer(): void {
+        if (this.periodicCleanupTimerId !== undefined) {
+            window.clearInterval(this.periodicCleanupTimerId);
+            this.periodicCleanupTimerId = undefined;
+        }
+    }
+
     // Compare Used Images with all images and return unused ones
-    clearUnusedAttachments = async (type: 'all' | 'image') => {
+    clearUnusedAttachments = async (
+        type: 'all' | 'image',
+        options: { silentIfBusy?: boolean } = {}
+    ) => {
+        if (this.cleanupInProgress) {
+            if (!options.silentIfBusy) {
+                new Notice('Cleanup is already running.');
+            }
+            return;
+        }
+
+        this.cleanupInProgress = true;
         try {
             var unusedAttachments: TFile[] = await Util.getUnusedAttachments(this.app, type);
             var len = unusedAttachments.length;
@@ -115,6 +179,8 @@ export default class OzanClearImages extends Plugin {
         } catch (error) {
             console.error('Clear unused attachments failed.', error);
             new Notice(`Cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            this.cleanupInProgress = false;
         }
     };
 

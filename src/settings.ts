@@ -1,6 +1,11 @@
 import OzanClearImages from './main';
 import { PluginSettingTab, Setting, App } from 'obsidian';
-import { AUTO_CLEAN_ON_VAULT_LOAD_DEFAULT } from './startupCleanup';
+import {
+    AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
+    AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
+    AUTO_CLEAN_ON_VAULT_LOAD_DEFAULT,
+    normalizeAutoCleanIntervalMinutes,
+} from './startupCleanup';
 
 export interface OzanClearImagesSettings {
     deleteOption: string;
@@ -9,6 +14,8 @@ export interface OzanClearImagesSettings {
     ribbonIcon: boolean;
     excludeSubfolders: boolean;
     autoCleanOnVaultLoad: boolean;
+    autoCleanEveryXMinutes: boolean;
+    autoCleanIntervalMinutes: number;
 }
 
 export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
@@ -18,6 +25,8 @@ export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
     ribbonIcon: false,
     excludeSubfolders: false,
     autoCleanOnVaultLoad: AUTO_CLEAN_ON_VAULT_LOAD_DEFAULT,
+    autoCleanEveryXMinutes: AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
+    autoCleanIntervalMinutes: AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
 };
 
 export class OzanClearImagesSettingsTab extends PluginSettingTab {
@@ -69,6 +78,37 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName('Clean Images Every X Minutes')
+            .setDesc(
+                'Automatically run the unused image cleanup every X minutes while Obsidian stays open. The timer starts after the vault layout is ready, waits for the full interval before the first run, and does not run when Permanently Delete is selected.'
+            )
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.autoCleanEveryXMinutes).onChange(async (value) => {
+                    this.plugin.settings.autoCleanEveryXMinutes = value;
+                    await this.plugin.saveSettings();
+                    this.plugin.refreshPeriodicCleanup();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName('Cleanup Interval In Minutes')
+            .setDesc('Choose how many minutes the plugin waits between automatic image cleanup runs. Minimum: 1 minute.')
+            .addText((text) =>
+                text
+                    .setPlaceholder(AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT.toString())
+                    .setValue(this.plugin.settings.autoCleanIntervalMinutes.toString())
+                    .onChange(async (value) => {
+                        const normalizedInterval = normalizeAutoCleanIntervalMinutes(value);
+                        this.plugin.settings.autoCleanIntervalMinutes = normalizedInterval;
+                        await this.plugin.saveSettings();
+                        if (value !== normalizedInterval.toString()) {
+                            text.setValue(normalizedInterval.toString());
+                        }
+                        this.plugin.refreshPeriodicCleanup();
+                    })
+            );
+
+        new Setting(containerEl)
             .setName('Deleted Image Destination')
             .setDesc('Select where you want images to be moved once they are deleted')
             .addDropdown((dropdown) => {
@@ -76,9 +116,10 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                 dropdown.addOption('.trash', 'Move to Obsidian Trash');
                 dropdown.addOption('system-trash', 'Move to System Trash');
                 dropdown.setValue(this.plugin.settings.deleteOption);
-                dropdown.onChange((option) => {
+                dropdown.onChange(async (option) => {
                     this.plugin.settings.deleteOption = option;
-                    this.plugin.saveSettings();
+                    await this.plugin.saveSettings();
+                    this.plugin.refreshPeriodicCleanup();
                 });
             });
 

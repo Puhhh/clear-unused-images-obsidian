@@ -35,6 +35,16 @@ You can enable automatic cleanup during vault startup with the `Clean Images On 
 - If you enable the toggle while Obsidian is already open, the change takes effect on the next vault load.
 - If `Permanently Delete` is selected, the existing confirmation dialog still appears before deletion starts.
 
+### Clean Images Every X Minutes
+
+You can also enable recurring automatic cleanup with the `Clean Images Every X Minutes` setting.
+
+- The periodic timer only runs image cleanup while Obsidian stays open.
+- The timer starts after the vault layout is ready and waits the full configured interval before the first periodic run.
+- If both automatic modes are enabled, the vault-load cleanup runs once on startup and the periodic cleanup starts later on its normal interval.
+- Periodic cleanup is disabled when `Permanently Delete` is selected.
+- Changing the toggle, interval, or delete destination in settings updates the periodic scheduler for the current session.
+
 ### Excluded Folders
 
 You can exclude folders from which you do not want images to be removed during the scan. If there are multiple folders to exclude, separate them with commas. Please provide the full path inside the vault:
@@ -74,7 +84,7 @@ If all images are used, you will see the following message:
 -   [x] Creating settings for users to select the destination of the deleted files
 -   [x] Excluded folders settings for the scan
 -   [x] Images to be cleaned during load of the vault if users chooses.
--   [ ] Images to be cleaned every X minutes depending on user's choice
+-   [x] Images to be cleaned every X minutes depending on user's choice
 
 ## Support
 
