@@ -1,11 +1,12 @@
 {
     "name": "clear-unused-images",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "Fork of oz-clear-unused-images for clearing unused images from Obsidian vaults.",
     "main": "main.js",
     "scripts": {
         "dev": "rollup --config rollup.config.js -w",
-        "build": "rollup --config rollup.config.js --environment BUILD:production"
+        "build": "rollup --config rollup.config.js --environment BUILD:production",
+        "test": "node --test --experimental-strip-types tests/*.test.ts"
     },
     "keywords": [],
     "author": "Aleksei Blinov",

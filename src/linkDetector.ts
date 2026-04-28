@@ -1,4 +1,5 @@
 import { TFile, App } from 'obsidian';
+import { extractMarkdownLinkMatches } from './referenceUtils';
 
 /* -------------------- LINK DETECTOR -------------------- */
 
@@ -64,8 +65,7 @@ export const getAllLinkMatchesInFile = async (mdFile: TFile, app: App, fileText?
     }
 
     // --> Get All Markdown Links
-    let markdownRegex = /\[(^$|.*?)\]\((.*?)\)/g;
-    let markdownMatches = fileText.match(markdownRegex);
+    let markdownMatches = extractMarkdownLinkMatches(fileText.toString());
     if (markdownMatches) {
         let fileRegex = /(?<=\().*(?=\))/;
         for (let markdownMatch of markdownMatches) {

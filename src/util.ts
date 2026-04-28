@@ -1,12 +1,17 @@
 import { App, TFile } from 'obsidian';
 import OzanClearImages from './main';
 import { getAllLinkMatchesInFile, LinkMatch } from './linkDetector';
+import {
+    IMAGE_EXTENSIONS,
+    hasImageExtension,
+    isPathCoveredByExcludedFolder,
+    resolveVaultAttachmentReference,
+    splitExcludedFolders,
+} from './referenceUtils';
 
 /* ------------------ Image Handlers  ------------------ */
 
-const imageRegex = /.*(jpe?g|png|gif|svg|bmp)/i;
 const bannerRegex = /!\[\[(.*?)\]\]/i;
-const imageExtensions: Set<string> = new Set(['jpeg', 'jpg', 'png', 'gif', 'svg', 'bmp', 'webp']);
 
 // Create the List of Unused Images
 export const getUnusedAttachments = async (app: App, type: 'image' | 'all') => {
@@ -32,7 +37,7 @@ const getAttachmentsInVault = (app: App, type: 'image' | 'all'): TFile[] => {
     for (let i = 0; i < allFiles.length; i++) {
         if (!['md', 'canvas'].includes(allFiles[i].extension)) {
             // Only images
-            if (imageExtensions.has(allFiles[i].extension.toLowerCase())) {
+            if (IMAGE_EXTENSIONS.has(allFiles[i].extension.toLowerCase())) {
                 attachments.push(allFiles[i]);
             }
             // All Files
@@ -75,8 +80,11 @@ const getAttachmentPathSetForVault = async (app: App): Promise<Set<string>> => {
                             if (file) {
                                 addToSet(attachmentsSet, file.path);
                             }
-                        } else if (pathIsAnImage(frontmatter[k])) {
-                            addToSet(attachmentsSet, frontmatter[k]);
+                        } else {
+                            const resolvedPath = resolveAttachmentReference(app, frontmatter[k], obsFile.path);
+                            if (resolvedPath) {
+                                addToSet(attachmentsSet, resolvedPath);
+                            }
                         }
                     }
                 }
@@ -90,27 +98,27 @@ const getAttachmentPathSetForVault = async (app: App): Promise<Set<string>> => {
         // Check Canvas for links
         else if (obsFile.extension === 'canvas') {
             let fileRead = await app.vault.cachedRead(obsFile);
-            let canvasData = JSON.parse(fileRead);
-            if (canvasData.nodes && canvasData.nodes.length > 0) {
-                for (const node of canvasData.nodes) {
-                    // node.type: 'text' | 'file'
-                    if (node.type === 'file') {
-                        addToSet(attachmentsSet, node.file);
-                    } else if (node.type == 'text') {
-                        let linkMatches: LinkMatch[] = await getAllLinkMatchesInFile(obsFile, app, node.text);
-                        for (let linkMatch of linkMatches) {
-                            addToSet(attachmentsSet, linkMatch.linkText);
+            try {
+                let canvasData = JSON.parse(fileRead);
+                if (canvasData.nodes && canvasData.nodes.length > 0) {
+                    for (const node of canvasData.nodes) {
+                        // node.type: 'text' | 'file'
+                        if (node.type === 'file') {
+                            addToSet(attachmentsSet, node.file);
+                        } else if (node.type == 'text') {
+                            let linkMatches: LinkMatch[] = await getAllLinkMatchesInFile(obsFile, app, node.text);
+                            for (let linkMatch of linkMatches) {
+                                addToSet(attachmentsSet, linkMatch.linkText);
+                            }
                         }
                     }
                 }
+            } catch (error) {
+                console.warn(`Failed to parse canvas file: ${obsFile.path}`, error);
             }
         }
     }
     return attachmentsSet;
-};
-
-const pathIsAnImage = (path: string) => {
-    return path.match(imageRegex);
 };
 
 /* ------------------ Deleting Handlers  ------------------ */
@@ -120,28 +128,46 @@ export const deleteFilesInTheList = async (
     fileList: TFile[],
     plugin: OzanClearImages,
     app: App
-): Promise<{ deletedImages: number; textToView: string }> => {
+): Promise<{ deletedImages: number; skippedImages: number; failedImages: number; logLines: string[] }> => {
     var deleteOption = plugin.settings.deleteOption;
     var deletedImages = 0;
-    let textToView = '';
+    var skippedImages = 0;
+    var failedImages = 0;
+    let logLines: string[] = [];
     for (let file of fileList) {
         if (fileIsInExcludedFolder(file, plugin)) {
             console.log('File not referenced but excluded: ' + file.path);
+            skippedImages++;
+            logLines.push(`[=] Skipped excluded file: ${file.path}`);
         } else {
-            if (deleteOption === '.trash') {
-                await app.vault.trash(file, false);
-                textToView += `[+] Moved to Obsidian Trash: ` + file.path + '</br>';
-            } else if (deleteOption === 'system-trash') {
-                await app.vault.trash(file, true);
-                textToView += `[+] Moved to System Trash: ` + file.path + '</br>';
-            } else if (deleteOption === 'permanent') {
-                await app.vault.delete(file);
-                textToView += `[+] Deleted Permanently: ` + file.path + '</br>';
+            try {
+                let deleted = false;
+                if (deleteOption === '.trash') {
+                    await app.vault.trash(file, false);
+                    logLines.push(`[+] Moved to Obsidian Trash: ${file.path}`);
+                    deleted = true;
+                } else if (deleteOption === 'system-trash') {
+                    await app.vault.trash(file, true);
+                    logLines.push(`[+] Moved to System Trash: ${file.path}`);
+                    deleted = true;
+                } else if (deleteOption === 'permanent') {
+                    await app.vault.delete(file);
+                    logLines.push(`[+] Deleted Permanently: ${file.path}`);
+                    deleted = true;
+                } else {
+                    throw new Error(`Unsupported delete option: ${deleteOption}`);
+                }
+
+                if (deleted) {
+                    deletedImages++;
+                }
+            } catch (error) {
+                failedImages++;
+                logLines.push(`[!] Failed to delete ${file.path}: ${getErrorMessage(error)}`);
             }
-            deletedImages++;
         }
     }
-    return { deletedImages, textToView };
+    return { deletedImages, skippedImages, failedImages, logLines };
 };
 
 // Check if File is Under Excluded Folders
@@ -152,24 +178,21 @@ const fileIsInExcludedFolder = (file: TFile, plugin: OzanClearImages): boolean =
         return false;
     } else {
         // Get All Excluded Folder Paths
-        var excludedFolderPaths = new Set(
-            excludedFoldersSettings.split(',').map((folderPath) => {
-                return folderPath.trim();
-            })
-        );
+        var excludedFolderPaths = splitExcludedFolders(excludedFoldersSettings);
 
         if (excludeSubfolders) {
-            // If subfolders included, check if any provided path partially match
+            // If subfolders included, check if any provided path covers the current folder path
             for (let exludedFolderPath of excludedFolderPaths) {
-                var pathRegex = new RegExp(exludedFolderPath + '.*');
-                if (file.parent.path.match(pathRegex)) {
+                if (isPathCoveredByExcludedFolder(file.parent.path, exludedFolderPath, true)) {
                     return true;
                 }
             }
         } else {
             // Full path of parent should match if subfolders are not included
-            if (excludedFolderPaths.has(file.parent.path)) {
-                return true;
+            for (let exludedFolderPath of excludedFolderPaths) {
+                if (isPathCoveredByExcludedFolder(file.parent.path, exludedFolderPath, false)) {
+                    return true;
+                }
             }
         }
 
@@ -195,4 +218,23 @@ const addToSet = (setObj: Set<string>, value: string) => {
     if (!setObj.has(value)) {
         setObj.add(value);
     }
+};
+
+const resolveAttachmentReference = (app: App, reference: string, sourcePath: string): string | null => {
+    return resolveVaultAttachmentReference(
+        reference,
+        sourcePath,
+        (referencePath, sourceFilePath) => {
+            const file = app.metadataCache.getFirstLinkpathDest(referencePath, sourceFilePath);
+            return file ? file.path : null;
+        },
+        (referencePath) => {
+            const file = app.vault.getAbstractFileByPath(referencePath);
+            return file instanceof TFile && (hasImageExtension(file.path) || file.extension !== 'md');
+        }
+    );
+};
+
+const getErrorMessage = (error: unknown): string => {
+    return error instanceof Error ? error.message : String(error);
 };

@@ -1,11 +1,11 @@
 import { Modal, App } from 'obsidian';
 
 export class LogsModal extends Modal {
-    textToView: string;
+    logLines: string[];
 
-    constructor(textToView: string, app: App) {
+    constructor(logLines: string[], app: App) {
         super(app);
-        this.textToView = textToView;
+        this.logLines = logLines;
     }
 
     onOpen() {
@@ -21,7 +21,10 @@ export class LogsModal extends Modal {
         // Information to show
         const logs = contentEl.createEl('div');
         logs.addClass('unused-images-logs');
-        logs.innerHTML = this.textToView;
+        for (const line of this.logLines) {
+            const lineEl = logs.createDiv();
+            lineEl.setText(line);
+        }
 
         // Close Button
         const buttonWrapper = contentEl.createEl('div');
