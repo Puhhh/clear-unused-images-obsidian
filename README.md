@@ -69,7 +69,7 @@ You can now exclude all subfolders under the folder paths provided above:
 
     - Or use the ribbon icon or open the Command Palette with `Ctrl/Cmd + P` and run `Clear Unused Images`.
 
-    ![clear-command](images/clear-command.png)
+    ![command](images/command.png)
 
 3. If you have turned on the "Delete Logs" option in plugin settings, you will see a modal with information about which images were deleted from your vault:
 
