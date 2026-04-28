@@ -1,56 +1,60 @@
-# Obsidian Plugin for Clearing Unused Images
+# clear-unused-images
 
-This plugin helps you to keep your vault clean by deleting the images you are not referencing in your markdown notes anymore.
+`clear-unused-images` is a fork of [`oz-clear-unused-images`](https://github.com/ozntel/oz-clear-unused-images-obsidian).
 
-The plugin simply gets all of your image links from all the markdown documents and compares these images with all image files you have available in your vault.
+The current fork is maintained by [Aleksei Blinov](https://github.com/Puhhh). The original plugin author is [Ozan](https://www.ozan.pl).
 
-In case any of these image files are not referenced in any document of the vault, they will be automatically deleted.
+This plugin helps keep your vault clean by deleting images that are no longer referenced in your markdown notes.
+
+The plugin collects image links from markdown documents and compares them against image files in your vault.
+
+If any image files are not referenced in any document, they can be deleted automatically.
 
 ## Settings
 
 ### Deleted Image Destination
 
-Please make sure that you select the destination for the deleted images under "Clear Unused Images Settings" tab. You have 3 options:
+Please make sure that you select the destination for deleted images under the "Clear Unused Images Settings" tab. You have 3 options:
 
-<img src="https://github.com/ozntel/oz-clear-unused-images-obsidian/blob/master/images/delete-destination.png?raw=true">
+![delete-destination](images/delete-destination.png)
 
 1. **Move to Obsidian Trash** - Files are going to be moved to the `.trash` under the Obsidian Vault.
 
 2. **Move to System Trash** - Files are going to be moved to the Operating System trash.
 
-3. **Permanently Delete** - Files are going to be destroyed permanently. You won't beable to revert back.
+3. **Permanently Delete** - Files are destroyed permanently. You will not be able to revert them.
 
 ### Excluded Folders
 
-You can exclude folders, from which you don't want images to be removed during the scan. In case there are multiple folders to be excluded, you can divide them by comma. Please ensure you provide the full path in Vault:
+You can exclude folders from which you do not want images to be removed during the scan. If there are multiple folders to exclude, separate them with commas. Please provide the full path inside the vault:
 
-<img src="https://github.com/ozntel/oz-clear-unused-images-obsidian/blob/master/images/excluded-folders.png?raw=true">
+![excluded-folders](images/excluded-folders.png)
 
 You can now exclude all subfolders under the folder paths provided above:
 
-<img src="https://github.com/ozntel/oz-clear-unused-images-obsidian/blob/master/images/exclude-subfolders.png?raw=true">
+![exclude-subfolders](images/exclude-subfolders.png)
 
 ## How to use
 
-1. Activate the plugin from Community Plugins
+1. Activate the plugin from Community Plugins.
 
 2. You can either:
 
-    - Activate the Ribbon Icon from plugin settings and click Icon from Left Ribbon for running the clean up:
+    - Activate the ribbon icon from plugin settings and click the icon in the left ribbon to run the cleanup:
 
-    <img src="https://user-images.githubusercontent.com/55187568/118400231-0ceeed80-b661-11eb-9b07-7e22fab02694.png">
+    ![ribbon-icon-settings](images/ribbon-icon-settings.png)
 
-    - Or use Ribbon Icon or Open Command Palette (Using `Ctrl/Cmd + P` or from Ribbon) Run "Clear Unused Images".
+    - Or use the ribbon icon or open the Command Palette with `Ctrl/Cmd + P` and run `Clear Unused Images`.
 
-    <img src="https://github.com/ozntel/oz-clear-unused-images-obsidian/raw/master/images/Clear-Command.png">
+    ![clear-command](images/clear-command.png)
 
-3. If you have turned on "Delete Logs" option in plugin settings, you will see a modal popping up with an information which images are deleted from your vault:
+3. If you have turned on the "Delete Logs" option in plugin settings, you will see a modal with information about which images were deleted from your vault:
 
-<img src="https://github.com/ozntel/oz-clear-unused-images-obsidian/raw/master/images/logs-modal.png">
+![logs-modal](images/logs-modal.png)
 
-In case all images are used, you will see communication as below:
+If all images are used, you will see the following message:
 
-<img src="https://github.com/ozntel/oz-clear-unused-images-obsidian/raw/master/images/nothing-deleted.png">
+![nothing-deleted](images/nothing-deleted.png)
 
 **Scanned Image Formats** : jpg, jpeg, png, gif, svg, bmp, webp
 
@@ -63,8 +67,4 @@ In case all images are used, you will see communication as below:
 
 ## Support
 
-If you are enjoying the plugin then you can support my work and enthusiasm by buying me a coffee:
-
-<a href='https://ko-fi.com/L3L356V6Q' target='_blank'>
-    <img height='48' style='border:0px;height:48px;' src='https://cdn.ko-fi.com/cdn/kofi1.png?v=2' border='0' alt='Buy Me a Coffee at ko-fi.com' />
-</a>
+This repository is distributed under the [MIT License](LICENSE).
