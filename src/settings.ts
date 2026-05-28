@@ -128,7 +128,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             .setName('Excluded folder full paths')
             .setDesc(
                 `Provide the full path of the folder names (case sensitive) divided by comma (,) to be excluded from clearing.
-					I.e. For images under personal/files/zodiac -> personal/files/zodiac should be used for exclusion`
+					I.e. For images under personal/files/puhhh -> personal/files/puhhh should be used for exclusion`
             )
             .addTextArea((text) =>
                 text.setValue(this.plugin.settings.excludedFolders).onChange((value) => {
