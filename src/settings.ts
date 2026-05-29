@@ -16,6 +16,7 @@ export interface OzanClearImagesSettings {
     autoCleanOnVaultLoad: boolean;
     autoCleanEveryXMinutes: boolean;
     autoCleanIntervalMinutes: number;
+    clearEmptyFoldersAfterImageCleanup: boolean;
 }
 
 export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
     autoCleanOnVaultLoad: AUTO_CLEAN_ON_VAULT_LOAD_DEFAULT,
     autoCleanEveryXMinutes: AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
     autoCleanIntervalMinutes: AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
+    clearEmptyFoldersAfterImageCleanup: false,
 };
 
 export class OzanClearImagesSettingsTab extends PluginSettingTab {
@@ -88,6 +90,16 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                     this.plugin.settings.autoCleanEveryXMinutes = value;
                     await this.plugin.saveSettings();
                     this.plugin.refreshPeriodicCleanup();
+                })
+            );
+
+        new Setting(containerEl)
+            .setName('Clear empty folders after image cleanup')
+            .setDesc('After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup.')
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.clearEmptyFoldersAfterImageCleanup).onChange((value) => {
+                    this.plugin.settings.clearEmptyFoldersAfterImageCleanup = value;
+                    void this.plugin.saveSettings();
                 })
             );
 

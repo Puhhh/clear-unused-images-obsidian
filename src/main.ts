@@ -1,10 +1,20 @@
-import { App, Modal, Notice, Plugin, TFile } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, TFolder } from 'obsidian';
 import { OzanClearImagesSettingsTab } from './settings';
 import { OzanClearImagesSettings, DEFAULT_SETTINGS } from './settings';
 import { LogsModal } from './modals';
 import { CleanupReviewModal } from './reviewModal';
 import * as Util from './util';
+import { shouldClearEmptyFoldersAfterAttachmentCleanup } from './cleanupFlow';
 import { createPeriodicCleanupScheduler, createVaultLoadCleanupScheduler } from './startupCleanup';
+
+interface FolderCleanupResult {
+    deletedFolders: number;
+    failedFolders: number;
+    skippedFolders: number;
+    foundFolders: number;
+    cancelled: boolean;
+    logLines: string[];
+}
 
 export default class OzanClearImages extends Plugin {
     settings: OzanClearImagesSettings;
@@ -37,6 +47,13 @@ export default class OzanClearImages extends Plugin {
             name: 'Clear unused attachments',
             callback: () => {
                 void this.clearUnusedAttachments('all');
+            },
+        });
+        this.addCommand({
+            id: 'clear-unused-folders',
+            name: 'Clear unused folders',
+            callback: () => {
+                void this.clearUnusedFolders();
             },
         });
         this.refreshIconRibbon();
@@ -211,11 +228,8 @@ export default class OzanClearImages extends Plugin {
                 let logs: string[] = [];
                 logs.push(`[+] ${Util.getFormattedDate()}: Clearing started.`);
 
-                const { deletedImages, skippedImages, failedImages, logLines } = await Util.deleteFilesInTheList(
-                    unusedAttachments,
-                    this,
-                    this.app
-                );
+                const { deletedImages, skippedImages, failedImages, deletedParentFolderPaths, logLines } =
+                    await Util.deleteFilesInTheList(unusedAttachments, this, this.app);
 
                 logs.push(...logLines);
                 logs.push(`[+] ${deletedImages.toString()} ${type === 'image' ? 'image(s)' : 'attachment(s)'} deleted.`);
@@ -225,15 +239,42 @@ export default class OzanClearImages extends Plugin {
                 if (failedImages > 0) {
                     logs.push(`[!] ${failedImages.toString()} file(s) failed to delete.`);
                 }
+
+                let folderCleanupResult: FolderCleanupResult | null = null;
+                if (
+                    shouldClearEmptyFoldersAfterAttachmentCleanup({
+                        cleanupType: type,
+                        deletedFiles: deletedImages,
+                        clearEmptyFoldersAfterImageCleanup: this.settings.clearEmptyFoldersAfterImageCleanup,
+                    })
+                ) {
+                    folderCleanupResult = await this.deleteUnusedFolders({
+                        candidateFolderPaths: new Set(deletedParentFolderPaths),
+                    });
+                    logs.push(...folderCleanupResult.logLines);
+                }
+
                 logs.push(`[+] ${Util.getFormattedDate()}: Clearing completed.`);
 
                 if (failedImages > 0) {
                     new Notice(`Cleanup finished with ${failedImages.toString()} deletion error(s). Check logs.`);
+                } else if (folderCleanupResult?.failedFolders) {
+                    new Notice(
+                        `Image cleanup finished with ${folderCleanupResult.failedFolders.toString()} folder deletion error(s). Check logs.`
+                    );
                 } else if (deletedImages > 0) {
-                    new Notice(`Deleted ${deletedImages.toString()} unused ${type === 'image' ? 'image(s)' : 'attachment(s)'}.`);
+                    const folderNotice =
+                        folderCleanupResult && folderCleanupResult.deletedFolders > 0
+                            ? ` and ${folderCleanupResult.deletedFolders.toString()} empty folder(s)`
+                            : '';
+                    new Notice(
+                        `Deleted ${deletedImages.toString()} unused ${
+                            type === 'image' ? 'image(s)' : 'attachment(s)'
+                        }${folderNotice}.`
+                    );
                 }
 
-                if (this.settings.logsModal || failedImages > 0) {
+                if (this.settings.logsModal || failedImages > 0 || (folderCleanupResult?.failedFolders ?? 0) > 0) {
                     const modal = new LogsModal(logs, this.app);
                     modal.open();
                 }
@@ -248,7 +289,117 @@ export default class OzanClearImages extends Plugin {
         }
     };
 
-    confirmPermanentDelete(len: number, type: 'all' | 'image'): Promise<boolean> {
+    private deleteUnusedFolders = async (options: { candidateFolderPaths?: ReadonlySet<string> } = {}): Promise<FolderCleanupResult> => {
+        const { unusedFolders, skippedFolders }: { unusedFolders: TFolder[]; skippedFolders: TFolder[] } =
+            options.candidateFolderPaths
+                ? Util.getUnusedFoldersFromDeletedFileParents(this.app, this, options.candidateFolderPaths)
+                : Util.getUnusedFolders(this.app, this);
+        const len = unusedFolders.length;
+
+        if (len === 0) {
+            const noFoldersMessage = options.candidateFolderPaths
+                ? '[=] No empty folders from deleted images found. No folders were deleted.'
+                : '[=] No empty folders found. No folders were deleted.';
+            return {
+                deletedFolders: 0,
+                failedFolders: 0,
+                skippedFolders: skippedFolders.length,
+                foundFolders: 0,
+                cancelled: false,
+                logLines:
+                    skippedFolders.length > 0
+                        ? ['[=] Only excluded empty folders were found. No folders were deleted.']
+                        : [noFoldersMessage],
+            };
+        }
+
+        if (this.settings.deleteOption === 'permanent' && !(await this.confirmPermanentDelete(len, 'folder'))) {
+            new Notice('Folder cleanup cancelled.');
+            return {
+                deletedFolders: 0,
+                failedFolders: 0,
+                skippedFolders: skippedFolders.length,
+                foundFolders: len,
+                cancelled: true,
+                logLines: ['[=] Folder cleanup cancelled.'],
+            };
+        }
+
+        const logs: string[] = [];
+        logs.push(`[+] ${Util.getFormattedDate()}: Folder clearing started.`);
+        for (const folder of skippedFolders) {
+            logs.push(`[=] Skipped excluded folder: ${folder.path}`);
+        }
+
+        const { deletedFolders, failedFolders, logLines } = await Util.deleteFoldersInTheList(
+            unusedFolders,
+            this,
+            this.app
+        );
+
+        logs.push(...logLines);
+        logs.push(`[+] ${deletedFolders.toString()} empty folder(s) deleted.`);
+        if (skippedFolders.length > 0) {
+            logs.push(`[=] ${skippedFolders.length.toString()} excluded folder(s) skipped.`);
+        }
+        if (failedFolders > 0) {
+            logs.push(`[!] ${failedFolders.toString()} folder(s) failed to delete.`);
+        }
+        logs.push(`[+] ${Util.getFormattedDate()}: Folder clearing completed.`);
+
+        return {
+            deletedFolders,
+            failedFolders,
+            skippedFolders: skippedFolders.length,
+            foundFolders: len,
+            cancelled: false,
+            logLines: logs,
+        };
+    };
+
+    clearUnusedFolders = async (options: { silentIfBusy?: boolean } = {}) => {
+        if (this.cleanupInProgress) {
+            if (!options.silentIfBusy) {
+                new Notice('Cleanup is already running.');
+            }
+            return;
+        }
+
+        this.cleanupInProgress = true;
+        try {
+            const result = await this.deleteUnusedFolders();
+
+            if (result.cancelled) {
+                return;
+            }
+
+            if (result.foundFolders > 0) {
+                if (result.failedFolders > 0) {
+                    new Notice(
+                        `Folder cleanup finished with ${result.failedFolders.toString()} deletion error(s). Check logs.`
+                    );
+                } else if (result.deletedFolders > 0) {
+                    new Notice(`Deleted ${result.deletedFolders.toString()} empty folder(s).`);
+                }
+
+                if (this.settings.logsModal || result.failedFolders > 0) {
+                    const modal = new LogsModal(result.logLines, this.app);
+                    modal.open();
+                }
+            } else if (result.skippedFolders > 0) {
+                new Notice('Only excluded empty folders were found. Nothing was deleted.');
+            } else {
+                new Notice('No empty folders found. Nothing was deleted.');
+            }
+        } catch (error) {
+            console.error('Clear unused folders failed.', error);
+            new Notice(`Folder cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            this.cleanupInProgress = false;
+        }
+    };
+
+    confirmPermanentDelete(len: number, type: 'all' | 'image' | 'folder'): Promise<boolean> {
         return new PermanentDeleteConfirmationModal(this.app, len, type).prompt();
     }
 }
@@ -262,11 +413,10 @@ class PermanentDeleteConfirmationModal extends Modal {
     private resolveDecision: ((decision: boolean) => void) | undefined;
     private decisionResolved = false;
 
-    constructor(app: App, len: number, type: 'all' | 'image') {
+    constructor(app: App, len: number, type: 'all' | 'image' | 'folder') {
         super(app);
-        this.message = `Permanently delete ${len.toString()} unused ${
-            type === 'image' ? 'image(s)' : 'attachment(s)'
-        }? This cannot be undone.`;
+        const targetLabel = type === 'image' ? 'image(s)' : type === 'folder' ? 'empty folder(s)' : 'attachment(s)';
+        this.message = `Permanently delete ${len.toString()} unused ${targetLabel}? This cannot be undone.`;
     }
 
     prompt(): Promise<boolean> {

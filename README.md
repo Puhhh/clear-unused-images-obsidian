@@ -49,6 +49,17 @@ You can also enable recurring automatic cleanup with the `Clean Images Every X M
 - Periodic cleanup is disabled when `Permanently Delete` is selected.
 - Changing the toggle, interval, or delete destination in settings updates the periodic scheduler for the current session.
 
+### Clear Empty Folders After Image Cleanup
+
+![clear-empty-folders](images/clear-empty-folders.png)
+
+Turn on `Clear empty folders after image cleanup` if you want the image cleanup flow to also remove folders that become empty after unused images are deleted.
+
+- This setting applies to `Clear unused images`, `Clean Images On Vault Load`, and `Clean Images Every X Minutes`.
+- It does not change `Clear unused attachments`.
+- It only removes folders that directly contained images deleted by that cleanup run. Folders that were already empty are kept.
+- If `Permanently Delete` is selected, folder deletion asks for a separate confirmation after the image deletion confirmation.
+
 ### Excluded Folders
 
 You can exclude folders from which you do not want images to be removed during the scan. If there are multiple folders to exclude, separate them with commas. Please provide the full path inside the vault:
@@ -83,14 +94,15 @@ If all images are used, you will see the following message:
 
 **Scanned Image Formats** : jpg, jpeg, png, gif, svg, bmp, webp
 
-### Clear Unused Images vs Clear Unused Attachments
+### Cleanup commands
 
-The plugin provides two cleanup commands:
+The plugin provides three cleanup commands:
 
-- `Clear Unused Images` checks only image files. It is limited to the scanned image formats listed above.
-- `Clear Unused Attachments` checks all non-note attachments in the vault, not just images. This can include files such as PDFs, audio, video, archives, and other non-markdown files.
+- `Clear unused images` checks only image files. It is limited to the scanned image formats listed above.
+- `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include files such as PDFs, audio, video, archives, and other non-markdown files.
+- `Clear unused folders` removes empty folders recursively, starting with the deepest folders first. It uses the selected delete destination and keeps folders under the excluded folder paths.
 
-Use `Clear Unused Images` for routine image cleanup. Use `Clear Unused Attachments` more carefully, because it has a wider scope and can delete any attachment that the plugin cannot find referenced in your notes, canvas files, or supported frontmatter references.
+Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully, because it has a wider scope and can delete any attachment that the plugin cannot find referenced in your notes, canvas files, or supported frontmatter references. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind, or enable `Clear empty folders after image cleanup` to do that automatically after unused image deletion.
 
 ## Support
 
