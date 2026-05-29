@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getEmptyFoldersInDeleteOrder } from '../src/folderCleanup.ts';
+import { getEmptyCandidateFoldersInDeleteOrder, getEmptyFoldersInDeleteOrder } from '../src/folderCleanup.ts';
 
 interface TestFile {
     path: string;
@@ -58,4 +58,51 @@ test('getEmptyFoldersInDeleteOrder protects excluded folder trees', () => {
     );
 
     assert.deepEqual(folders.map((candidate) => candidate.path), ['remove']);
+});
+
+test('getEmptyCandidateFoldersInDeleteOrder only removes empty direct candidate folders', () => {
+    const root = folder('', [
+        folder('was-empty-before-cleanup'),
+        folder('image-parent'),
+    ]);
+
+    const folders = getEmptyCandidateFoldersInDeleteOrder(
+        root,
+        (candidate): candidate is TestFolder => 'children' in candidate,
+        new Set(['image-parent'])
+    );
+
+    assert.deepEqual(folders.map((candidate) => candidate.path), ['image-parent']);
+});
+
+test('getEmptyCandidateFoldersInDeleteOrder does not remove parent folders without direct deleted images', () => {
+    const root = folder('', [
+        folder('parent', [
+            folder('parent/child'),
+        ]),
+    ]);
+
+    const folders = getEmptyCandidateFoldersInDeleteOrder(
+        root,
+        (candidate): candidate is TestFolder => 'children' in candidate,
+        new Set(['parent/child'])
+    );
+
+    assert.deepEqual(folders.map((candidate) => candidate.path), ['parent/child']);
+});
+
+test('getEmptyCandidateFoldersInDeleteOrder allows parent cleanup when it is also a direct candidate', () => {
+    const root = folder('', [
+        folder('parent', [
+            folder('parent/child'),
+        ]),
+    ]);
+
+    const folders = getEmptyCandidateFoldersInDeleteOrder(
+        root,
+        (candidate): candidate is TestFolder => 'children' in candidate,
+        new Set(['parent', 'parent/child'])
+    );
+
+    assert.deepEqual(folders.map((candidate) => candidate.path), ['parent/child', 'parent']);
 });

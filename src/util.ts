@@ -1,6 +1,6 @@
 import { App, TAbstractFile, TFile, TFolder } from 'obsidian';
 import OzanClearImages from './main';
-import { getEmptyFoldersInDeleteOrder } from './folderCleanup';
+import { getEmptyCandidateFoldersInDeleteOrder, getEmptyFoldersInDeleteOrder } from './folderCleanup';
 import { getAllLinkMatchesInFile, LinkMatch } from './linkDetector';
 import {
     IMAGE_EXTENSIONS,
@@ -57,6 +57,24 @@ export const getUnusedFolders = (
         isProtectedFolder
     );
     const skippedFolders = getEmptyProtectedFolders(rootFolder, isProtectedFolder);
+
+    return { unusedFolders, skippedFolders };
+};
+
+export const getUnusedFoldersFromDeletedFileParents = (
+    app: App,
+    plugin: OzanClearImages,
+    deletedParentFolderPaths: ReadonlySet<string>
+): { unusedFolders: TFolder[]; skippedFolders: TFolder[] } => {
+    const rootFolder = app.vault.getRoot();
+    const isProtectedFolder = (folder: TFolder): boolean => folderIsInExcludedFolderTree(folder, plugin);
+    const unusedFolders = getEmptyCandidateFoldersInDeleteOrder<TAbstractFile, TFolder>(
+        rootFolder,
+        (file): file is TFolder => file instanceof TFolder,
+        deletedParentFolderPaths,
+        isProtectedFolder
+    );
+    const skippedFolders = getEmptyProtectedCandidateFolders(rootFolder, deletedParentFolderPaths, isProtectedFolder);
 
     return { unusedFolders, skippedFolders };
 };
@@ -143,17 +161,25 @@ export const deleteFilesInTheList = async (
     fileList: TFile[],
     plugin: OzanClearImages,
     app: App
-): Promise<{ deletedImages: number; skippedImages: number; failedImages: number; logLines: string[] }> => {
+): Promise<{
+    deletedImages: number;
+    skippedImages: number;
+    failedImages: number;
+    deletedParentFolderPaths: string[];
+    logLines: string[];
+}> => {
     const deleteOption = plugin.settings.deleteOption;
     let deletedImages = 0;
     let skippedImages = 0;
     let failedImages = 0;
+    const deletedParentFolderPaths = new Set<string>();
     const logLines: string[] = [];
     for (const file of fileList) {
         if (fileIsInExcludedFolder(file, plugin)) {
             skippedImages++;
             logLines.push(`[=] Skipped excluded file: ${file.path}`);
         } else {
+            const parentFolderPath = file.parent.path;
             try {
                 let deleted = false;
                 if (deleteOption === '.trash') {
@@ -174,6 +200,7 @@ export const deleteFilesInTheList = async (
 
                 if (deleted) {
                     deletedImages++;
+                    deletedParentFolderPaths.add(parentFolderPath);
                 }
             } catch (error) {
                 failedImages++;
@@ -181,7 +208,7 @@ export const deleteFilesInTheList = async (
             }
         }
     }
-    return { deletedImages, skippedImages, failedImages, logLines };
+    return { deletedImages, skippedImages, failedImages, deletedParentFolderPaths: [...deletedParentFolderPaths], logLines };
 };
 
 export const deleteFoldersInTheList = async (
@@ -280,6 +307,41 @@ const getEmptyProtectedFolders = (
 
         if (!folder.isRoot() && folder.children.length === 0 && isProtectedFolder(folder)) {
             skippedFolders.push(folder);
+        }
+    };
+
+    visitFolder(rootFolder);
+    return skippedFolders;
+};
+
+const getEmptyProtectedCandidateFolders = (
+    rootFolder: TFolder,
+    candidateFolderPaths: ReadonlySet<string>,
+    isProtectedFolder: (folder: TFolder) => boolean
+): TFolder[] => {
+    const skippedFolders: TFolder[] = [];
+
+    const visitFolder = (folder: TFolder): void => {
+        if (folder.isRoot()) {
+            for (const child of folder.children) {
+                if (child instanceof TFolder) {
+                    visitFolder(child);
+                }
+            }
+            return;
+        }
+
+        if (isProtectedFolder(folder)) {
+            if (candidateFolderPaths.has(folder.path) && folder.children.length === 0) {
+                skippedFolders.push(folder);
+            }
+            return;
+        }
+
+        for (const child of folder.children) {
+            if (child instanceof TFolder) {
+                visitFolder(child);
+            }
         }
     };
 

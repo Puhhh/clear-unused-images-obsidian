@@ -57,6 +57,7 @@ Turn on `Clear empty folders after image cleanup` if you want the image cleanup 
 
 - This setting applies to `Clear unused images`, `Clean Images On Vault Load`, and `Clean Images Every X Minutes`.
 - It does not change `Clear unused attachments`.
+- It only removes folders that directly contained images deleted by that cleanup run. Folders that were already empty are kept.
 - If `Permanently Delete` is selected, folder deletion asks for a separate confirmation after the image deletion confirmation.
 
 ### Excluded Folders

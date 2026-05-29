@@ -228,11 +228,8 @@ export default class OzanClearImages extends Plugin {
                 let logs: string[] = [];
                 logs.push(`[+] ${Util.getFormattedDate()}: Clearing started.`);
 
-                const { deletedImages, skippedImages, failedImages, logLines } = await Util.deleteFilesInTheList(
-                    unusedAttachments,
-                    this,
-                    this.app
-                );
+                const { deletedImages, skippedImages, failedImages, deletedParentFolderPaths, logLines } =
+                    await Util.deleteFilesInTheList(unusedAttachments, this, this.app);
 
                 logs.push(...logLines);
                 logs.push(`[+] ${deletedImages.toString()} ${type === 'image' ? 'image(s)' : 'attachment(s)'} deleted.`);
@@ -251,7 +248,9 @@ export default class OzanClearImages extends Plugin {
                         clearEmptyFoldersAfterImageCleanup: this.settings.clearEmptyFoldersAfterImageCleanup,
                     })
                 ) {
-                    folderCleanupResult = await this.deleteUnusedFolders();
+                    folderCleanupResult = await this.deleteUnusedFolders({
+                        candidateFolderPaths: new Set(deletedParentFolderPaths),
+                    });
                     logs.push(...folderCleanupResult.logLines);
                 }
 
@@ -290,12 +289,17 @@ export default class OzanClearImages extends Plugin {
         }
     };
 
-    private deleteUnusedFolders = async (): Promise<FolderCleanupResult> => {
+    private deleteUnusedFolders = async (options: { candidateFolderPaths?: ReadonlySet<string> } = {}): Promise<FolderCleanupResult> => {
         const { unusedFolders, skippedFolders }: { unusedFolders: TFolder[]; skippedFolders: TFolder[] } =
-            Util.getUnusedFolders(this.app, this);
+            options.candidateFolderPaths
+                ? Util.getUnusedFoldersFromDeletedFileParents(this.app, this, options.candidateFolderPaths)
+                : Util.getUnusedFolders(this.app, this);
         const len = unusedFolders.length;
 
         if (len === 0) {
+            const noFoldersMessage = options.candidateFolderPaths
+                ? '[=] No empty folders from deleted images found. No folders were deleted.'
+                : '[=] No empty folders found. No folders were deleted.';
             return {
                 deletedFolders: 0,
                 failedFolders: 0,
@@ -305,7 +309,7 @@ export default class OzanClearImages extends Plugin {
                 logLines:
                     skippedFolders.length > 0
                         ? ['[=] Only excluded empty folders were found. No folders were deleted.']
-                        : ['[=] No empty folders found. No folders were deleted.'],
+                        : [noFoldersMessage],
             };
         }
 

@@ -2,6 +2,11 @@
 
 All notable changes to this fork are documented in this file.
 
+## 1.5.1
+
+- Fixed automatic empty folder cleanup after image cleanup so it only removes folders that directly contained deleted images.
+- Fixed file cleanup logging after trash deletion so Obsidian-detached files are not also reported as failed deletions.
+
 ## 1.5.0
 
 - Added a setting to clear empty folders automatically after unused image cleanup deletes images.
