@@ -1,5 +1,6 @@
-import { App, TFile } from 'obsidian';
+import { App, TAbstractFile, TFile, TFolder } from 'obsidian';
 import OzanClearImages from './main';
+import { getEmptyFoldersInDeleteOrder } from './folderCleanup';
 import { getAllLinkMatchesInFile, LinkMatch } from './linkDetector';
 import {
     IMAGE_EXTENSIONS,
@@ -42,6 +43,22 @@ export const getUnusedAttachments = async (app: App, type: 'image' | 'all') => {
     });
 
     return unusedAttachments;
+};
+
+export const getUnusedFolders = (
+    app: App,
+    plugin: OzanClearImages
+): { unusedFolders: TFolder[]; skippedFolders: TFolder[] } => {
+    const rootFolder = app.vault.getRoot();
+    const isProtectedFolder = (folder: TFolder): boolean => folderIsInExcludedFolderTree(folder, plugin);
+    const unusedFolders = getEmptyFoldersInDeleteOrder<TAbstractFile, TFolder>(
+        rootFolder,
+        (file): file is TFolder => file instanceof TFolder,
+        isProtectedFolder
+    );
+    const skippedFolders = getEmptyProtectedFolders(rootFolder, isProtectedFolder);
+
+    return { unusedFolders, skippedFolders };
 };
 
 // Getting all available images saved in vault
@@ -167,6 +184,47 @@ export const deleteFilesInTheList = async (
     return { deletedImages, skippedImages, failedImages, logLines };
 };
 
+export const deleteFoldersInTheList = async (
+    folderList: TFolder[],
+    plugin: OzanClearImages,
+    app: App
+): Promise<{ deletedFolders: number; failedFolders: number; logLines: string[] }> => {
+    const deleteOption = plugin.settings.deleteOption;
+    let deletedFolders = 0;
+    let failedFolders = 0;
+    const logLines: string[] = [];
+
+    for (const folder of folderList) {
+        try {
+            let deleted = false;
+            if (deleteOption === '.trash') {
+                await app.vault.trash(folder, false);
+                logLines.push(`[+] Moved folder to Obsidian Trash: ${folder.path}`);
+                deleted = true;
+            } else if (deleteOption === 'system-trash') {
+                await app.vault.trash(folder, true);
+                logLines.push(`[+] Moved folder to System Trash: ${folder.path}`);
+                deleted = true;
+            } else if (deleteOption === 'permanent') {
+                await app.vault.delete(folder);
+                logLines.push(`[+] Deleted folder permanently: ${folder.path}`);
+                deleted = true;
+            } else {
+                throw new Error(`Unsupported delete option: ${deleteOption}`);
+            }
+
+            if (deleted) {
+                deletedFolders++;
+            }
+        } catch (error) {
+            failedFolders++;
+            logLines.push(`[!] Failed to delete folder ${folder.path}: ${getErrorMessage(error)}`);
+        }
+    }
+
+    return { deletedFolders, failedFolders, logLines };
+};
+
 // Check if File is Under Excluded Folders
 const fileIsInExcludedFolder = (file: TFile, plugin: OzanClearImages): boolean => {
     const excludedFoldersSettings = plugin.settings.excludedFolders;
@@ -195,6 +253,38 @@ const fileIsInExcludedFolder = (file: TFile, plugin: OzanClearImages): boolean =
 
         return false;
     }
+};
+
+const folderIsInExcludedFolderTree = (folder: TFolder, plugin: OzanClearImages): boolean => {
+    if (folder.isRoot() || plugin.settings.excludedFolders === '') {
+        return false;
+    }
+
+    return splitExcludedFolders(plugin.settings.excludedFolders).some((excludedFolderPath) =>
+        isPathCoveredByExcludedFolder(folder.path, excludedFolderPath, true)
+    );
+};
+
+const getEmptyProtectedFolders = (
+    rootFolder: TFolder,
+    isProtectedFolder: (folder: TFolder) => boolean
+): TFolder[] => {
+    const skippedFolders: TFolder[] = [];
+
+    const visitFolder = (folder: TFolder): void => {
+        for (const child of folder.children) {
+            if (child instanceof TFolder) {
+                visitFolder(child);
+            }
+        }
+
+        if (!folder.isRoot() && folder.children.length === 0 && isProtectedFolder(folder)) {
+            skippedFolders.push(folder);
+        }
+    };
+
+    visitFolder(rootFolder);
+    return skippedFolders;
 };
 
 /* ------------------ Helpers  ------------------ */

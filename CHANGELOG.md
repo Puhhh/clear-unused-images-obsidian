@@ -2,6 +2,10 @@
 
 All notable changes to this fork are documented in this file.
 
+## 1.4.5
+
+- Added the `Clear unused folders` command for recursively removing empty folders while respecting excluded folder paths.
+
 ## 1.4.4
 
 - Added ESLint integration with the Obsidian plugin recommended rules.

@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, TFile } from 'obsidian';
+import { App, Modal, Notice, Plugin, TFile, TFolder } from 'obsidian';
 import { OzanClearImagesSettingsTab } from './settings';
 import { OzanClearImagesSettings, DEFAULT_SETTINGS } from './settings';
 import { LogsModal } from './modals';
@@ -37,6 +37,13 @@ export default class OzanClearImages extends Plugin {
             name: 'Clear unused attachments',
             callback: () => {
                 void this.clearUnusedAttachments('all');
+            },
+        });
+        this.addCommand({
+            id: 'clear-unused-folders',
+            name: 'Clear unused folders',
+            callback: () => {
+                void this.clearUnusedFolders();
             },
         });
         this.refreshIconRibbon();
@@ -248,7 +255,71 @@ export default class OzanClearImages extends Plugin {
         }
     };
 
-    confirmPermanentDelete(len: number, type: 'all' | 'image'): Promise<boolean> {
+    clearUnusedFolders = async (options: { silentIfBusy?: boolean } = {}) => {
+        if (this.cleanupInProgress) {
+            if (!options.silentIfBusy) {
+                new Notice('Cleanup is already running.');
+            }
+            return;
+        }
+
+        this.cleanupInProgress = true;
+        try {
+            const { unusedFolders, skippedFolders }: { unusedFolders: TFolder[]; skippedFolders: TFolder[] } =
+                Util.getUnusedFolders(this.app, this);
+            const len = unusedFolders.length;
+            if (len > 0) {
+                if (this.settings.deleteOption === 'permanent' && !(await this.confirmPermanentDelete(len, 'folder'))) {
+                    new Notice('Cleanup cancelled.');
+                    return;
+                }
+
+                let logs: string[] = [];
+                logs.push(`[+] ${Util.getFormattedDate()}: Folder clearing started.`);
+                for (const folder of skippedFolders) {
+                    logs.push(`[=] Skipped excluded folder: ${folder.path}`);
+                }
+
+                const { deletedFolders, failedFolders, logLines } = await Util.deleteFoldersInTheList(
+                    unusedFolders,
+                    this,
+                    this.app
+                );
+
+                logs.push(...logLines);
+                logs.push(`[+] ${deletedFolders.toString()} empty folder(s) deleted.`);
+                if (skippedFolders.length > 0) {
+                    logs.push(`[=] ${skippedFolders.length.toString()} excluded folder(s) skipped.`);
+                }
+                if (failedFolders > 0) {
+                    logs.push(`[!] ${failedFolders.toString()} folder(s) failed to delete.`);
+                }
+                logs.push(`[+] ${Util.getFormattedDate()}: Folder clearing completed.`);
+
+                if (failedFolders > 0) {
+                    new Notice(`Folder cleanup finished with ${failedFolders.toString()} deletion error(s). Check logs.`);
+                } else if (deletedFolders > 0) {
+                    new Notice(`Deleted ${deletedFolders.toString()} empty folder(s).`);
+                }
+
+                if (this.settings.logsModal || failedFolders > 0) {
+                    const modal = new LogsModal(logs, this.app);
+                    modal.open();
+                }
+            } else if (skippedFolders.length > 0) {
+                new Notice('Only excluded empty folders were found. Nothing was deleted.');
+            } else {
+                new Notice('No empty folders found. Nothing was deleted.');
+            }
+        } catch (error) {
+            console.error('Clear unused folders failed.', error);
+            new Notice(`Folder cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            this.cleanupInProgress = false;
+        }
+    };
+
+    confirmPermanentDelete(len: number, type: 'all' | 'image' | 'folder'): Promise<boolean> {
         return new PermanentDeleteConfirmationModal(this.app, len, type).prompt();
     }
 }
@@ -262,11 +333,10 @@ class PermanentDeleteConfirmationModal extends Modal {
     private resolveDecision: ((decision: boolean) => void) | undefined;
     private decisionResolved = false;
 
-    constructor(app: App, len: number, type: 'all' | 'image') {
+    constructor(app: App, len: number, type: 'all' | 'image' | 'folder') {
         super(app);
-        this.message = `Permanently delete ${len.toString()} unused ${
-            type === 'image' ? 'image(s)' : 'attachment(s)'
-        }? This cannot be undone.`;
+        const targetLabel = type === 'image' ? 'image(s)' : type === 'folder' ? 'empty folder(s)' : 'attachment(s)';
+        this.message = `Permanently delete ${len.toString()} unused ${targetLabel}? This cannot be undone.`;
     }
 
     prompt(): Promise<boolean> {

@@ -83,14 +83,15 @@ If all images are used, you will see the following message:
 
 **Scanned Image Formats** : jpg, jpeg, png, gif, svg, bmp, webp
 
-### Clear Unused Images vs Clear Unused Attachments
+### Cleanup commands
 
-The plugin provides two cleanup commands:
+The plugin provides three cleanup commands:
 
-- `Clear Unused Images` checks only image files. It is limited to the scanned image formats listed above.
-- `Clear Unused Attachments` checks all non-note attachments in the vault, not just images. This can include files such as PDFs, audio, video, archives, and other non-markdown files.
+- `Clear unused images` checks only image files. It is limited to the scanned image formats listed above.
+- `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include files such as PDFs, audio, video, archives, and other non-markdown files.
+- `Clear unused folders` removes empty folders recursively, starting with the deepest folders first. It uses the selected delete destination and keeps folders under the excluded folder paths.
 
-Use `Clear Unused Images` for routine image cleanup. Use `Clear Unused Attachments` more carefully, because it has a wider scope and can delete any attachment that the plugin cannot find referenced in your notes, canvas files, or supported frontmatter references.
+Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully, because it has a wider scope and can delete any attachment that the plugin cannot find referenced in your notes, canvas files, or supported frontmatter references. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind.
 
 ## Support
 
