@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write
+  attestations: write
+  id-token: write
+
+jobs:
+  github-release:
+    name: Build and publish GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release version
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+          VERSION_MIN_APP="$(node -p "require('./versions.json')['${VERSION}'] || ''")"
+
+          if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Expected tag format X.Y.Z, got ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          if [ "${PACKAGE_VERSION}" != "${VERSION}" ]; then
+            echo "package.json version ${PACKAGE_VERSION} does not match tag ${VERSION}" >&2
+            exit 1
+          fi
+
+          if [ "${MANIFEST_VERSION}" != "${VERSION}" ]; then
+            echo "manifest.json version ${MANIFEST_VERSION} does not match tag ${VERSION}" >&2
+            exit 1
+          fi
+
+          if [ -z "${VERSION_MIN_APP}" ]; then
+            echo "versions.json does not contain ${VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Attest manifest.json
+        uses: actions/attest@v4
+        with:
+          subject-path: manifest.json
+
+      - name: Attest main.js
+        uses: actions/attest@v4
+        with:
+          subject-path: main.js
+
+      - name: Attest styles.css
+        uses: actions/attest@v4
+        with:
+          subject-path: styles.css
+
+      - name: Write release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          awk "
+            /^## \\[${VERSION}\\]/ { capture = 1; next }
+            /^## \\[/ && capture { exit }
+            capture { print }
+          " CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No changelog entry found for ${VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md \
+            manifest.json main.js styles.css

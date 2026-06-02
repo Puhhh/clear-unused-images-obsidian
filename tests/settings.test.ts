@@ -1,10 +1,13 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-test('clear empty folders after image cleanup is disabled by default in plugin settings', () => {
-    const settingsSource = readFileSync(new URL('../src/settings.ts', import.meta.url), 'utf8');
+import { describe, expect, it } from 'vitest';
 
-    assert.match(settingsSource, /clearEmptyFoldersAfterImageCleanup:\s*boolean/);
-    assert.match(settingsSource, /clearEmptyFoldersAfterImageCleanup:\s*false/);
+describe('plugin settings defaults', () => {
+    it('keeps clear empty folders after image cleanup disabled by default', () => {
+        const settingsSource = readFileSync(join(process.cwd(), 'src/settings.ts'), 'utf8');
+
+        expect(settingsSource).toMatch(/clearEmptyFoldersAfterImageCleanup:\s*boolean/);
+        expect(settingsSource).toMatch(/clearEmptyFoldersAfterImageCleanup:\s*false/);
+    });
 });

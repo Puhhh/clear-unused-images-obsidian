@@ -25,8 +25,10 @@ interface CanvasTextNode {
     text: string;
 }
 
+type CanvasNode = CanvasFileNode | CanvasTextNode | Record<string, unknown>;
+
 interface CanvasData {
-    nodes?: Array<CanvasFileNode | CanvasTextNode | Record<string, unknown>>;
+    nodes?: CanvasNode[];
 }
 
 // Create the List of Unused Images
@@ -369,11 +371,23 @@ const addToSet = (setObj: Set<string>, value: string) => {
     }
 };
 
-const isCanvasFileNode = (node: CanvasData['nodes'][number]): node is CanvasFileNode => {
+const isObjectRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null;
+};
+
+const isCanvasFileNode = (node: CanvasNode): node is CanvasFileNode => {
+    if (!isObjectRecord(node)) {
+        return false;
+    }
+
     return node.type === 'file' && typeof node.file === 'string';
 };
 
-const isCanvasTextNode = (node: CanvasData['nodes'][number]): node is CanvasTextNode => {
+const isCanvasTextNode = (node: CanvasNode): node is CanvasTextNode => {
+    if (!isObjectRecord(node)) {
+        return false;
+    }
+
     return node.type === 'text' && typeof node.text === 'string';
 };
 

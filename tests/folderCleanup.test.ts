@@ -1,7 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, expect, it } from 'vitest';
 
-import { getEmptyCandidateFoldersInDeleteOrder, getEmptyFoldersInDeleteOrder } from '../src/folderCleanup.ts';
+import { getEmptyCandidateFoldersInDeleteOrder, getEmptyFoldersInDeleteOrder } from '../src/folderCleanup';
 
 interface TestFile {
     path: string;
@@ -15,94 +14,98 @@ interface TestFolder {
 const file = (path: string): TestFile => ({ path });
 const folder = (path: string, children: Array<TestFile | TestFolder> = []): TestFolder => ({ path, children });
 
-test('getEmptyFoldersInDeleteOrder skips root and returns deepest empty folders before parents', () => {
-    const root = folder('', [
-        folder('empty-parent', [
-            folder('empty-parent/empty-child'),
-        ]),
-    ]);
+describe('getEmptyFoldersInDeleteOrder', () => {
+    it('skips root and returns deepest empty folders before parents', () => {
+        const root = folder('', [
+            folder('empty-parent', [
+                folder('empty-parent/empty-child'),
+            ]),
+        ]);
 
-    const folders = getEmptyFoldersInDeleteOrder(root, (candidate): candidate is TestFolder => 'children' in candidate);
+        const folders = getEmptyFoldersInDeleteOrder(root, (candidate): candidate is TestFolder => 'children' in candidate);
 
-    assert.deepEqual(folders.map((candidate) => candidate.path), [
-        'empty-parent/empty-child',
-        'empty-parent',
-    ]);
+        expect(folders.map((candidate) => candidate.path)).toEqual([
+            'empty-parent/empty-child',
+            'empty-parent',
+        ]);
+    });
+
+    it('keeps folders that contain files', () => {
+        const root = folder('', [
+            folder('has-file', [
+                file('has-file/note.md'),
+            ]),
+            folder('empty'),
+        ]);
+
+        const folders = getEmptyFoldersInDeleteOrder(root, (candidate): candidate is TestFolder => 'children' in candidate);
+
+        expect(folders.map((candidate) => candidate.path)).toEqual(['empty']);
+    });
+
+    it('protects excluded folder trees', () => {
+        const root = folder('', [
+            folder('keep', [
+                folder('keep/empty-child'),
+            ]),
+            folder('remove'),
+        ]);
+
+        const folders = getEmptyFoldersInDeleteOrder(
+            root,
+            (candidate): candidate is TestFolder => 'children' in candidate,
+            (candidate) => candidate.path === 'keep' || candidate.path.startsWith('keep/')
+        );
+
+        expect(folders.map((candidate) => candidate.path)).toEqual(['remove']);
+    });
 });
 
-test('getEmptyFoldersInDeleteOrder keeps folders that contain files', () => {
-    const root = folder('', [
-        folder('has-file', [
-            file('has-file/note.md'),
-        ]),
-        folder('empty'),
-    ]);
+describe('getEmptyCandidateFoldersInDeleteOrder', () => {
+    it('only removes empty direct candidate folders', () => {
+        const root = folder('', [
+            folder('was-empty-before-cleanup'),
+            folder('image-parent'),
+        ]);
 
-    const folders = getEmptyFoldersInDeleteOrder(root, (candidate): candidate is TestFolder => 'children' in candidate);
+        const folders = getEmptyCandidateFoldersInDeleteOrder(
+            root,
+            (candidate): candidate is TestFolder => 'children' in candidate,
+            new Set(['image-parent'])
+        );
 
-    assert.deepEqual(folders.map((candidate) => candidate.path), ['empty']);
-});
+        expect(folders.map((candidate) => candidate.path)).toEqual(['image-parent']);
+    });
 
-test('getEmptyFoldersInDeleteOrder protects excluded folder trees', () => {
-    const root = folder('', [
-        folder('keep', [
-            folder('keep/empty-child'),
-        ]),
-        folder('remove'),
-    ]);
+    it('does not remove parent folders without direct deleted images', () => {
+        const root = folder('', [
+            folder('parent', [
+                folder('parent/child'),
+            ]),
+        ]);
 
-    const folders = getEmptyFoldersInDeleteOrder(
-        root,
-        (candidate): candidate is TestFolder => 'children' in candidate,
-        (candidate) => candidate.path === 'keep' || candidate.path.startsWith('keep/')
-    );
+        const folders = getEmptyCandidateFoldersInDeleteOrder(
+            root,
+            (candidate): candidate is TestFolder => 'children' in candidate,
+            new Set(['parent/child'])
+        );
 
-    assert.deepEqual(folders.map((candidate) => candidate.path), ['remove']);
-});
+        expect(folders.map((candidate) => candidate.path)).toEqual(['parent/child']);
+    });
 
-test('getEmptyCandidateFoldersInDeleteOrder only removes empty direct candidate folders', () => {
-    const root = folder('', [
-        folder('was-empty-before-cleanup'),
-        folder('image-parent'),
-    ]);
+    it('allows parent cleanup when it is also a direct candidate', () => {
+        const root = folder('', [
+            folder('parent', [
+                folder('parent/child'),
+            ]),
+        ]);
 
-    const folders = getEmptyCandidateFoldersInDeleteOrder(
-        root,
-        (candidate): candidate is TestFolder => 'children' in candidate,
-        new Set(['image-parent'])
-    );
+        const folders = getEmptyCandidateFoldersInDeleteOrder(
+            root,
+            (candidate): candidate is TestFolder => 'children' in candidate,
+            new Set(['parent', 'parent/child'])
+        );
 
-    assert.deepEqual(folders.map((candidate) => candidate.path), ['image-parent']);
-});
-
-test('getEmptyCandidateFoldersInDeleteOrder does not remove parent folders without direct deleted images', () => {
-    const root = folder('', [
-        folder('parent', [
-            folder('parent/child'),
-        ]),
-    ]);
-
-    const folders = getEmptyCandidateFoldersInDeleteOrder(
-        root,
-        (candidate): candidate is TestFolder => 'children' in candidate,
-        new Set(['parent/child'])
-    );
-
-    assert.deepEqual(folders.map((candidate) => candidate.path), ['parent/child']);
-});
-
-test('getEmptyCandidateFoldersInDeleteOrder allows parent cleanup when it is also a direct candidate', () => {
-    const root = folder('', [
-        folder('parent', [
-            folder('parent/child'),
-        ]),
-    ]);
-
-    const folders = getEmptyCandidateFoldersInDeleteOrder(
-        root,
-        (candidate): candidate is TestFolder => 'children' in candidate,
-        new Set(['parent', 'parent/child'])
-    );
-
-    assert.deepEqual(folders.map((candidate) => candidate.path), ['parent/child', 'parent']);
+        expect(folders.map((candidate) => candidate.path)).toEqual(['parent/child', 'parent']);
+    });
 });

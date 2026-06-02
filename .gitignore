@@ -1,7 +1,10 @@
 # Folders
 node_modules/
 .obsidian/
+examples/
 error/
 
 # Files
 .DS_Store
+.env
+release-notes.md

@@ -1,5 +1,4 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, expect, it } from 'vitest';
 
 import {
     extractMarkdownLinkMatches,
@@ -7,81 +6,84 @@ import {
     isPathCoveredByExcludedFolder,
     parseMarkdownLinkDestination,
     resolveVaultAttachmentReference,
-} from '../src/referenceUtils.ts';
+} from '../src/referenceUtils';
 
-test('hasImageExtension recognizes webp and strips query strings', () => {
-    assert.equal(hasImageExtension('assets/cover.webp'), true);
-    assert.equal(hasImageExtension('assets/cover.png?version=2'), true);
-    assert.equal(hasImageExtension('https://example.com/file.txt'), false);
+describe('hasImageExtension', () => {
+    it('recognizes webp and strips query strings', () => {
+        expect(hasImageExtension('assets/cover.webp')).toBe(true);
+        expect(hasImageExtension('assets/cover.png?version=2')).toBe(true);
+        expect(hasImageExtension('https://example.com/file.txt')).toBe(false);
+    });
 });
 
-test('resolveVaultAttachmentReference prefers resolved vault path and ignores external references', () => {
-    const resolvedPath = resolveVaultAttachmentReference(
-        'cover.webp',
-        'notes/daily.md',
-        (referencePath) => (referencePath === 'cover.webp' ? 'assets/cover.webp' : null),
-        () => false
-    );
+describe('resolveVaultAttachmentReference', () => {
+    it('prefers resolved vault path and ignores external references', () => {
+        const resolvedPath = resolveVaultAttachmentReference(
+            'cover.webp',
+            'notes/daily.md',
+            (referencePath) => (referencePath === 'cover.webp' ? 'assets/cover.webp' : null),
+            () => false
+        );
 
-    assert.equal(resolvedPath, 'assets/cover.webp');
-    assert.equal(
-        resolveVaultAttachmentReference('https://example.com/cover.webp', 'notes/daily.md', () => null, () => false),
-        null
-    );
-});
+        expect(resolvedPath).toBe('assets/cover.webp');
+        expect(
+            resolveVaultAttachmentReference('https://example.com/cover.webp', 'notes/daily.md', () => null, () => false)
+        ).toBe(null);
+    });
 
-test('resolveVaultAttachmentReference respects cleanup scope', () => {
-    assert.equal(
-        resolveVaultAttachmentReference(
+    it('respects cleanup scope', () => {
+        expect(resolveVaultAttachmentReference(
             'report.pdf',
             'notes/daily.md',
             (referencePath) => (referencePath === 'report.pdf' ? 'docs/report.pdf' : null),
             () => false,
             'all'
-        ),
-        'docs/report.pdf'
-    );
+        )).toBe('docs/report.pdf');
 
-    assert.equal(
-        resolveVaultAttachmentReference(
+        expect(resolveVaultAttachmentReference(
             'report.pdf',
             'notes/daily.md',
             (referencePath) => (referencePath === 'report.pdf' ? 'docs/report.pdf' : null),
             () => false,
             'image'
-        ),
-        null
-    );
+        )).toBe(null);
+    });
+
+    it('falls back to exact vault path lookup', () => {
+        const resolvedPath = resolveVaultAttachmentReference(
+            'assets/cover.webp',
+            'notes/daily.md',
+            () => null,
+            (referencePath) => referencePath === 'assets/cover.webp'
+        );
+
+        expect(resolvedPath).toBe('assets/cover.webp');
+    });
 });
 
-test('resolveVaultAttachmentReference falls back to exact vault path lookup', () => {
-    const resolvedPath = resolveVaultAttachmentReference(
-        'assets/cover.webp',
-        'notes/daily.md',
-        () => null,
-        (referencePath) => referencePath === 'assets/cover.webp'
-    );
-
-    assert.equal(resolvedPath, 'assets/cover.webp');
+describe('isPathCoveredByExcludedFolder', () => {
+    it('respects folder boundaries', () => {
+        expect(isPathCoveredByExcludedFolder('foo/bar', 'foo/bar', false)).toBe(true);
+        expect(isPathCoveredByExcludedFolder('foo/bar/nested', 'foo/bar', true)).toBe(true);
+        expect(isPathCoveredByExcludedFolder('foo/barista', 'foo/bar', true)).toBe(false);
+        expect(isPathCoveredByExcludedFolder('foo/bar/nested', 'foo/bar', false)).toBe(false);
+    });
 });
 
-test('isPathCoveredByExcludedFolder respects folder boundaries', () => {
-    assert.equal(isPathCoveredByExcludedFolder('foo/bar', 'foo/bar', false), true);
-    assert.equal(isPathCoveredByExcludedFolder('foo/bar/nested', 'foo/bar', true), true);
-    assert.equal(isPathCoveredByExcludedFolder('foo/barista', 'foo/bar', true), false);
-    assert.equal(isPathCoveredByExcludedFolder('foo/bar/nested', 'foo/bar', false), false);
+describe('extractMarkdownLinkMatches', () => {
+    it('keeps paths with parentheses intact', () => {
+        const matches = extractMarkdownLinkMatches(
+            'A [photo](assets/photo (1).png) and [doc](files/report.pdf) inside the same note.'
+        );
+
+        expect(matches).toEqual(['[photo](assets/photo (1).png)', '[doc](files/report.pdf)']);
+    });
 });
 
-test('extractMarkdownLinkMatches keeps paths with parentheses intact', () => {
-    const matches = extractMarkdownLinkMatches(
-        'A [photo](assets/photo (1).png) and [doc](files/report.pdf) inside the same note.'
-    );
-
-    assert.deepEqual(matches, ['[photo](assets/photo (1).png)', '[doc](files/report.pdf)']);
-});
-
-test('parseMarkdownLinkDestination strips titles and angle brackets', () => {
-    assert.equal(parseMarkdownLinkDestination('[img](assets/photo.png "caption")'), 'assets/photo.png');
-    assert.equal(parseMarkdownLinkDestination('[img](<assets/photo (1).png>)'), 'assets/photo (1).png');
-    assert.equal(parseMarkdownLinkDestination('[doc](<files/report.pdf> "caption")'), 'files/report.pdf');
+describe('parseMarkdownLinkDestination', () => {
+    it('strips titles and angle brackets', () => {
+        expect(parseMarkdownLinkDestination('[img](assets/photo.png "caption")')).toBe('assets/photo.png');
+        expect(parseMarkdownLinkDestination('[img](<assets/photo (1).png>)')).toBe('assets/photo (1).png');
+        expect(parseMarkdownLinkDestination('[doc](<files/report.pdf> "caption")')).toBe('files/report.pdf');
+    });
 });

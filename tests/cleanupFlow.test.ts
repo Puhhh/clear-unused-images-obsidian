@@ -1,39 +1,28 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, expect, it } from 'vitest';
 
-import { shouldClearEmptyFoldersAfterAttachmentCleanup } from '../src/cleanupFlow.ts';
+import { shouldClearEmptyFoldersAfterAttachmentCleanup } from '../src/cleanupFlow';
 
-test('empty folder cleanup only follows image cleanup that deleted files when enabled', () => {
-    assert.equal(
-        shouldClearEmptyFoldersAfterAttachmentCleanup({
+describe('shouldClearEmptyFoldersAfterAttachmentCleanup', () => {
+    it('only follows image cleanup that deleted files when enabled', () => {
+        expect(shouldClearEmptyFoldersAfterAttachmentCleanup({
             cleanupType: 'image',
             deletedFiles: 1,
             clearEmptyFoldersAfterImageCleanup: true,
-        }),
-        true
-    );
-    assert.equal(
-        shouldClearEmptyFoldersAfterAttachmentCleanup({
+        })).toBe(true);
+        expect(shouldClearEmptyFoldersAfterAttachmentCleanup({
             cleanupType: 'image',
             deletedFiles: 0,
             clearEmptyFoldersAfterImageCleanup: true,
-        }),
-        false
-    );
-    assert.equal(
-        shouldClearEmptyFoldersAfterAttachmentCleanup({
+        })).toBe(false);
+        expect(shouldClearEmptyFoldersAfterAttachmentCleanup({
             cleanupType: 'all',
             deletedFiles: 1,
             clearEmptyFoldersAfterImageCleanup: true,
-        }),
-        false
-    );
-    assert.equal(
-        shouldClearEmptyFoldersAfterAttachmentCleanup({
+        })).toBe(false);
+        expect(shouldClearEmptyFoldersAfterAttachmentCleanup({
             cleanupType: 'image',
             deletedFiles: 1,
             clearEmptyFoldersAfterImageCleanup: false,
-        }),
-        false
-    );
+        })).toBe(false);
+    });
 });
