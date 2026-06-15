@@ -6,6 +6,13 @@ All notable changes to this fork are documented in this file.
 
 - No unreleased changes yet.
 
+## [1.5.3] - 2026-06-15
+
+### Changed
+
+- Updated build dependencies to resolve npm audit vulnerabilities.
+- Added a release workflow dependency audit gate.
+
 ## [1.5.2] - 2026-06-02
 
 ### Changed
