@@ -1,6 +1,6 @@
 {
   "name": "clear-unused-images-plus",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Fork of oz-clear-unused-images for clearing unused images from vaults.",
   "main": "main.js",
   "scripts": {
@@ -16,7 +16,7 @@
   "devDependencies": {
     "@types/node": "^24.9.1",
     "@typescript-eslint/parser": "^8.59.1",
-    "esbuild": "^0.25.11",
+    "esbuild": "^0.28.1",
     "eslint": "^9.39.4",
     "eslint-plugin-obsidianmd": "^0.2.8",
     "jsdom": "^26.1.0",
