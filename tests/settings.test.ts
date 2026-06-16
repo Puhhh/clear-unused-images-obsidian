@@ -10,4 +10,19 @@ describe('plugin settings defaults', () => {
         expect(settingsSource).toMatch(/clearEmptyFoldersAfterImageCleanup:\s*boolean/);
         expect(settingsSource).toMatch(/clearEmptyFoldersAfterImageCleanup:\s*false/);
     });
+
+    it('uses Obsidian-configured trash by default', () => {
+        const settingsSource = readFileSync(join(process.cwd(), 'src/settings.ts'), 'utf8');
+
+        expect(settingsSource).toMatch(/deleteOption:\s*'trash'/);
+    });
+
+    it('migrates old trash destinations to Obsidian-configured trash', () => {
+        const settingsSource = readFileSync(join(process.cwd(), 'src/settings.ts'), 'utf8');
+        const mainSource = readFileSync(join(process.cwd(), 'src/main.ts'), 'utf8');
+
+        expect(settingsSource).toMatch(/export const normalizeDeleteOption/);
+        expect(settingsSource).toMatch(/deleteOption === '\.trash' \|\| deleteOption === 'system-trash'/);
+        expect(mainSource).toMatch(/deleteOption: normalizeDeleteOption\(settingsOverride\.deleteOption\)/);
+    });
 });

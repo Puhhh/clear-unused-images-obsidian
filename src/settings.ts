@@ -1,4 +1,4 @@
-import OzanClearImages from './main';
+import type OzanClearImages from './main';
 import { PluginSettingTab, Setting, App } from 'obsidian';
 import {
     AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
@@ -8,7 +8,7 @@ import {
 } from './startupCleanup';
 
 export interface OzanClearImagesSettings {
-    deleteOption: string;
+    deleteOption: DeleteOption;
     logsModal: boolean;
     excludedFolders: string;
     ribbonIcon: boolean;
@@ -19,8 +19,22 @@ export interface OzanClearImagesSettings {
     clearEmptyFoldersAfterImageCleanup: boolean;
 }
 
+export type DeleteOption = 'trash' | 'permanent';
+
+export const normalizeDeleteOption = (deleteOption: unknown): DeleteOption => {
+    if (deleteOption === '.trash' || deleteOption === 'system-trash') {
+        return 'trash';
+    }
+
+    if (deleteOption === 'permanent') {
+        return 'permanent';
+    }
+
+    return 'trash';
+};
+
 export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
-    deleteOption: '.trash',
+    deleteOption: 'trash',
     logsModal: true,
     excludedFolders: '',
     ribbonIcon: false,
@@ -122,15 +136,14 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName('Deleted image destination')
-            .setDesc('Select where you want images to be moved once they are deleted')
+            .setName('Deleted file mode')
+            .setDesc('Select whether deleted files follow Obsidian trash settings or are permanently deleted.')
             .addDropdown((dropdown) => {
+                dropdown.addOption('trash', 'Move to Obsidian-configured trash');
                 dropdown.addOption('permanent', 'Delete permanently');
-                dropdown.addOption('.trash', 'Move to Obsidian trash');
-                dropdown.addOption('system-trash', 'Move to system trash');
                 dropdown.setValue(this.plugin.settings.deleteOption);
                 dropdown.onChange(async (option) => {
-                    this.plugin.settings.deleteOption = option;
+                    this.plugin.settings.deleteOption = normalizeDeleteOption(option);
                     await this.plugin.saveSettings();
                     this.plugin.refreshPeriodicCleanup();
                 });
