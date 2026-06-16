@@ -170,7 +170,6 @@ export const deleteFilesInTheList = async (
     deletedParentFolderPaths: string[];
     logLines: string[];
 }> => {
-    const deleteOption = plugin.settings.deleteOption;
     let deletedImages = 0;
     let skippedImages = 0;
     let failedImages = 0;
@@ -183,14 +182,8 @@ export const deleteFilesInTheList = async (
         } else {
             const parentFolderPath = file.parent.path;
             try {
-                if (deleteOption === 'trash') {
-                    await app.fileManager.trashFile(file);
-                    logLines.push(`[+] Moved to Obsidian-configured trash: ${file.path}`);
-                } else {
-                    // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Explicit confirmed permanent delete must bypass trash.
-                    await app.vault.delete(file);
-                    logLines.push(`[+] Deleted Permanently: ${file.path}`);
-                }
+                await app.fileManager.trashFile(file);
+                logLines.push(`[+] Moved to Obsidian-configured trash: ${file.path}`);
 
                 deletedImages++;
                 deletedParentFolderPaths.add(parentFolderPath);
@@ -205,24 +198,17 @@ export const deleteFilesInTheList = async (
 
 export const deleteFoldersInTheList = async (
     folderList: TFolder[],
-    plugin: OzanClearImages,
+    _plugin: OzanClearImages,
     app: App
 ): Promise<{ deletedFolders: number; failedFolders: number; logLines: string[] }> => {
-    const deleteOption = plugin.settings.deleteOption;
     let deletedFolders = 0;
     let failedFolders = 0;
     const logLines: string[] = [];
 
     for (const folder of folderList) {
         try {
-            if (deleteOption === 'trash') {
-                await app.fileManager.trashFile(folder);
-                logLines.push(`[+] Moved folder to Obsidian-configured trash: ${folder.path}`);
-            } else {
-                // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Explicit confirmed permanent delete must bypass trash.
-                await app.vault.delete(folder);
-                logLines.push(`[+] Deleted folder permanently: ${folder.path}`);
-            }
+            await app.fileManager.trashFile(folder);
+            logLines.push(`[+] Moved folder to Obsidian-configured trash: ${folder.path}`);
 
             deletedFolders++;
         } catch (error) {
