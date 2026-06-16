@@ -6,6 +6,12 @@ All notable changes to this fork are documented in this file.
 
 - No unreleased changes yet.
 
+## [1.5.5] - 2026-06-16
+
+### Changed
+
+- Removed plugin-controlled permanent deletion so cleanup always uses Obsidian's file manager deletion preference.
+
 ## [1.5.4] - 2026-06-16
 
 ### Changed

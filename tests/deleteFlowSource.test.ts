@@ -13,4 +13,14 @@ describe('file deletion source order', () => {
         expect(trashIndex).not.toBe(-1);
         expect(snapshotIndex).toBeLessThan(trashIndex);
     });
+
+    it('does not bypass the Obsidian file manager deletion preference', () => {
+        const utilSource = readFileSync(join(process.cwd(), 'src/util.ts'), 'utf8');
+
+        expect(utilSource).not.toContain('obsidianmd/prefer-file-manager-trash-file');
+        expect(utilSource).not.toContain('app.vault.delete');
+        expect(utilSource).not.toContain('app.vault.trash');
+        expect(utilSource).toContain('app.fileManager.trashFile(file');
+        expect(utilSource).toContain('app.fileManager.trashFile(folder');
+    });
 });

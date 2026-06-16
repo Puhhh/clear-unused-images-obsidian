@@ -19,15 +19,11 @@ export interface OzanClearImagesSettings {
     clearEmptyFoldersAfterImageCleanup: boolean;
 }
 
-export type DeleteOption = 'trash' | 'permanent';
+export type DeleteOption = 'trash';
 
 export const normalizeDeleteOption = (deleteOption: unknown): DeleteOption => {
-    if (deleteOption === '.trash' || deleteOption === 'system-trash') {
+    if (deleteOption === '.trash' || deleteOption === 'system-trash' || deleteOption === 'permanent') {
         return 'trash';
-    }
-
-    if (deleteOption === 'permanent') {
-        return 'permanent';
     }
 
     return 'trash';
@@ -85,7 +81,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Clean images on vault load')
             .setDesc(
-                'Automatically run the unused image cleanup once after the vault layout is ready. This setting only applies to images and starts working on the next vault load. Permanent delete will still ask for confirmation.'
+                'Automatically run the unused image cleanup once after the vault layout is ready. This setting only applies to images and starts working on the next vault load.'
             )
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.autoCleanOnVaultLoad).onChange((value) => {
@@ -97,7 +93,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Clean images every X minutes')
             .setDesc(
-                'Automatically run the unused image cleanup every X minutes while Obsidian stays open. The timer starts after the vault layout is ready, waits for the full interval before the first run, and does not run when permanently delete is selected.'
+                'Automatically run the unused image cleanup every X minutes while Obsidian stays open. The timer starts after the vault layout is ready and waits for the full interval before the first run.'
             )
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.autoCleanEveryXMinutes).onChange(async (value) => {
@@ -134,20 +130,6 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                         this.plugin.refreshPeriodicCleanup();
                     })
             );
-
-        new Setting(containerEl)
-            .setName('Deleted file mode')
-            .setDesc('Select whether deleted files follow Obsidian trash settings or are permanently deleted.')
-            .addDropdown((dropdown) => {
-                dropdown.addOption('trash', 'Move to Obsidian-configured trash');
-                dropdown.addOption('permanent', 'Delete permanently');
-                dropdown.setValue(this.plugin.settings.deleteOption);
-                dropdown.onChange(async (option) => {
-                    this.plugin.settings.deleteOption = normalizeDeleteOption(option);
-                    await this.plugin.saveSettings();
-                    this.plugin.refreshPeriodicCleanup();
-                });
-            });
 
         new Setting(containerEl)
             .setName('Excluded folder full paths')

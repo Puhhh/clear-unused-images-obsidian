@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, TFile, TFolder } from 'obsidian';
+import { Notice, Plugin, TFile, TFolder } from 'obsidian';
 import { OzanClearImagesSettingsTab } from './settings';
 import { OzanClearImagesSettings, DEFAULT_SETTINGS, normalizeDeleteOption } from './settings';
 import { LogsModal } from './modals';
@@ -129,18 +129,8 @@ export default class OzanClearImages extends Plugin {
         this.periodicCleanupScheduler({
             enabled: this.settings.autoCleanEveryXMinutes,
             intervalMinutes: this.settings.autoCleanIntervalMinutes,
-            canRunCleanup: () => {
-                if (this.settings.deleteOption === 'permanent') {
-                    return false;
-                }
-
-                return true;
-            },
+            canRunCleanup: () => true,
         });
-
-        if (this.settings.autoCleanEveryXMinutes && this.settings.deleteOption === 'permanent') {
-            new Notice('Periodic cleanup is disabled while permanently delete is selected.');
-        }
     }
 
     onVaultReady(callback: () => void | Promise<void>): void {
@@ -222,11 +212,6 @@ export default class OzanClearImages extends Plugin {
                         new Notice('Cleanup cancelled.');
                         return;
                     }
-                }
-
-                if (this.settings.deleteOption === 'permanent' && !(await this.confirmPermanentDelete(len, type))) {
-                    new Notice('Cleanup cancelled.');
-                    return;
                 }
 
                 let logs: string[] = [];
@@ -317,18 +302,6 @@ export default class OzanClearImages extends Plugin {
             };
         }
 
-        if (this.settings.deleteOption === 'permanent' && !(await this.confirmPermanentDelete(len, 'folder'))) {
-            new Notice('Folder cleanup cancelled.');
-            return {
-                deletedFolders: 0,
-                failedFolders: 0,
-                skippedFolders: skippedFolders.length,
-                foundFolders: len,
-                cancelled: true,
-                logLines: ['[=] Folder cleanup cancelled.'],
-            };
-        }
-
         const logs: string[] = [];
         logs.push(`[+] ${Util.getFormattedDate()}: Folder clearing started.`);
         for (const folder of skippedFolders) {
@@ -403,74 +376,8 @@ export default class OzanClearImages extends Plugin {
         }
     };
 
-    confirmPermanentDelete(len: number, type: 'all' | 'image' | 'folder'): Promise<boolean> {
-        return new PermanentDeleteConfirmationModal(this.app, len, type).prompt();
-    }
 }
 
 const isSettingsOverride = (value: unknown): value is Partial<OzanClearImagesSettings> => {
     return typeof value === 'object' && value !== null;
 };
-
-class PermanentDeleteConfirmationModal extends Modal {
-    private readonly message: string;
-    private resolveDecision: ((decision: boolean) => void) | undefined;
-    private decisionResolved = false;
-
-    constructor(app: App, len: number, type: 'all' | 'image' | 'folder') {
-        super(app);
-        const targetLabel = type === 'image' ? 'image(s)' : type === 'folder' ? 'empty folder(s)' : 'attachment(s)';
-        this.message = `Permanently delete ${len.toString()} unused ${targetLabel}? This cannot be undone.`;
-    }
-
-    prompt(): Promise<boolean> {
-        return new Promise<boolean>((resolve) => {
-            this.resolveDecision = resolve;
-            this.open();
-        });
-    }
-
-    onOpen(): void {
-        const { contentEl } = this;
-        contentEl.empty();
-
-        const headerWrapper = contentEl.createDiv();
-        headerWrapper.addClass('unused-images-center-wrapper');
-        headerWrapper.createEl('h1', { text: 'Confirm permanent delete' }).addClass('modal-title');
-
-        contentEl.createEl('p', { text: this.message });
-
-        const buttonWrapper = contentEl.createDiv();
-        buttonWrapper.addClass('unused-images-center-wrapper');
-
-        const cancelButton = buttonWrapper.createEl('button', { text: 'Cancel' });
-        cancelButton.addClass('unused-images-button');
-        cancelButton.addEventListener('click', () => {
-            this.closeWithDecision(false);
-        });
-
-        const deleteButton = buttonWrapper.createEl('button', { text: 'Delete permanently' });
-        deleteButton.addClass('unused-images-button');
-        deleteButton.addEventListener('click', () => {
-            this.closeWithDecision(true);
-        });
-    }
-
-    onClose(): void {
-        this.contentEl.empty();
-        if (!this.decisionResolved) {
-            this.decisionResolved = true;
-            this.resolveDecision?.(false);
-        }
-    }
-
-    private closeWithDecision(decision: boolean): void {
-        if (this.decisionResolved) {
-            return;
-        }
-
-        this.decisionResolved = true;
-        this.resolveDecision?.(decision);
-        this.close();
-    }
-}
