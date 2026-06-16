@@ -183,27 +183,17 @@ export const deleteFilesInTheList = async (
         } else {
             const parentFolderPath = file.parent.path;
             try {
-                let deleted = false;
-                if (deleteOption === '.trash') {
-                    await app.vault.trash(file, false);
-                    logLines.push(`[+] Moved to Obsidian Trash: ${file.path}`);
-                    deleted = true;
-                } else if (deleteOption === 'system-trash') {
-                    await app.vault.trash(file, true);
-                    logLines.push(`[+] Moved to System Trash: ${file.path}`);
-                    deleted = true;
-                } else if (deleteOption === 'permanent') {
+                if (deleteOption === 'trash') {
+                    await app.fileManager.trashFile(file);
+                    logLines.push(`[+] Moved to Obsidian-configured trash: ${file.path}`);
+                } else {
+                    // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Explicit confirmed permanent delete must bypass trash.
                     await app.vault.delete(file);
                     logLines.push(`[+] Deleted Permanently: ${file.path}`);
-                    deleted = true;
-                } else {
-                    throw new Error(`Unsupported delete option: ${deleteOption}`);
                 }
 
-                if (deleted) {
-                    deletedImages++;
-                    deletedParentFolderPaths.add(parentFolderPath);
-                }
+                deletedImages++;
+                deletedParentFolderPaths.add(parentFolderPath);
             } catch (error) {
                 failedImages++;
                 logLines.push(`[!] Failed to delete ${file.path}: ${getErrorMessage(error)}`);
@@ -225,26 +215,16 @@ export const deleteFoldersInTheList = async (
 
     for (const folder of folderList) {
         try {
-            let deleted = false;
-            if (deleteOption === '.trash') {
-                await app.vault.trash(folder, false);
-                logLines.push(`[+] Moved folder to Obsidian Trash: ${folder.path}`);
-                deleted = true;
-            } else if (deleteOption === 'system-trash') {
-                await app.vault.trash(folder, true);
-                logLines.push(`[+] Moved folder to System Trash: ${folder.path}`);
-                deleted = true;
-            } else if (deleteOption === 'permanent') {
+            if (deleteOption === 'trash') {
+                await app.fileManager.trashFile(folder);
+                logLines.push(`[+] Moved folder to Obsidian-configured trash: ${folder.path}`);
+            } else {
+                // eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- Explicit confirmed permanent delete must bypass trash.
                 await app.vault.delete(folder);
                 logLines.push(`[+] Deleted folder permanently: ${folder.path}`);
-                deleted = true;
-            } else {
-                throw new Error(`Unsupported delete option: ${deleteOption}`);
             }
 
-            if (deleted) {
-                deletedFolders++;
-            }
+            deletedFolders++;
         } catch (error) {
             failedFolders++;
             logLines.push(`[!] Failed to delete folder ${folder.path}: ${getErrorMessage(error)}`);

@@ -1,6 +1,6 @@
 import { App, Modal, Notice, Plugin, TFile, TFolder } from 'obsidian';
 import { OzanClearImagesSettingsTab } from './settings';
-import { OzanClearImagesSettings, DEFAULT_SETTINGS } from './settings';
+import { OzanClearImagesSettings, DEFAULT_SETTINGS, normalizeDeleteOption } from './settings';
 import { LogsModal } from './modals';
 import { CleanupReviewModal } from './reviewModal';
 import * as Util from './util';
@@ -68,7 +68,11 @@ export default class OzanClearImages extends Plugin {
     async loadSettings() {
         const loadedSettings: unknown = await this.loadData();
         const settingsOverride = isSettingsOverride(loadedSettings) ? loadedSettings : {};
-        this.settings = { ...DEFAULT_SETTINGS, ...settingsOverride };
+        this.settings = {
+            ...DEFAULT_SETTINGS,
+            ...settingsOverride,
+            deleteOption: normalizeDeleteOption(settingsOverride.deleteOption),
+        };
     }
 
     async saveSettings() {

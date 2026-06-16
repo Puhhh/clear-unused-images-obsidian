@@ -6,6 +6,13 @@ All notable changes to this fork are documented in this file.
 
 - No unreleased changes yet.
 
+## [1.5.4] - 2026-06-16
+
+### Changed
+
+- Updated trash cleanup to use Obsidian's file manager so trash deletion follows the user's Obsidian deletion preference.
+- Migrated the old Obsidian Trash and System Trash plugin destinations to one Obsidian-configured trash destination.
+
 ## [1.5.3] - 2026-06-15
 
 ### Changed
