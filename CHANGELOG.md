@@ -4,13 +4,25 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
-- No unreleased changes yet.
+## [1.5.6] - 2026-06-17
+
+### Changed
+
+- Updated README guidance for Obsidian 1.8.10+, quick-start cleanup usage, excluded folders, development installs, and signed release tags.
+
+### Security
+
+- Limited frontmatter reference traversal depth so deeply nested metadata cannot overflow the cleanup scan stack.
 
 ## [1.5.5] - 2026-06-16
 
 ### Changed
 
-- Removed plugin-controlled permanent deletion so cleanup always uses Obsidian's file manager deletion preference.
+- Changed file and folder cleanup so it always uses Obsidian's file manager deletion preference.
+
+### Removed
+
+- Removed the plugin-controlled permanent deletion setting, confirmation flow, and related documentation screenshot.
 
 ## [1.5.4] - 2026-06-16
 
