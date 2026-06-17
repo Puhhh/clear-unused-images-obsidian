@@ -1,12 +1,14 @@
 # Clear Unused Images Plus
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.5-blue)](./manifest.json)
-[![Obsidian](https://img.shields.io/badge/Obsidian-1.8%2B-7c3aed?logo=obsidian&logoColor=white)](https://obsidian.md/)
+[![Version](https://img.shields.io/badge/version-1.5.6-blue)](./manifest.json)
+[![Obsidian](https://img.shields.io/badge/Obsidian-1.8.10%2B-7c3aed?logo=obsidian&logoColor=white)](https://obsidian.md/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
 
 Clear Unused Images Plus is an Obsidian plugin for finding and deleting images that are no longer referenced in your vault. It scans markdown notes, supported frontmatter references, canvas files, and attachment links, then compares those references against image files in the vault.
+
+Use it when attachments accumulate over time and you want cleanup to follow Obsidian's own deletion behavior instead of bypassing your vault settings.
 
 This project is a maintained fork of [`oz-clear-unused-images`](https://github.com/ozntel/oz-clear-unused-images-obsidian). The current fork is maintained by [Aleksei B](https://github.com/Puhhh). The original plugin author is [Ozan](https://www.ozan.pl).
 
@@ -22,7 +24,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 - Finds unused images in Obsidian vaults
 - Supports markdown links, wikilinks, canvas-linked files, and supported frontmatter image references
-- Deletes files through Obsidian-configured trash
+- Deletes files and folders through Obsidian-configured trash
 - Optional review and log modal for cleanup results
 - Optional cleanup once after vault load
 - Optional recurring cleanup every configured number of minutes
@@ -32,11 +34,20 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ## Installation
 
+**Requirements**: Obsidian 1.8.10 or newer.
+
 1. Open Obsidian Settings.
 2. Go to Community plugins.
 3. Install `Clear Unused Images Plus`.
 4. Activate the plugin from Community Plugins.
 5. Configure Obsidian's file deletion preference before running cleanup.
+
+## Quick Start
+
+1. Set Obsidian's file deletion preference to system trash or local `.trash`.
+2. Run `Clear unused images` from the Command Palette.
+3. Review the cleanup log after deletion completes.
+4. Add excluded folders if the plugin reports files you want to keep outside normal note references.
 
 ## Usage
 
@@ -51,7 +62,7 @@ The plugin provides three cleanup commands:
 - `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include PDFs, audio, video, archives, and other non-markdown files.
 - `Clear unused folders` removes empty folders recursively, starting with the deepest folders first. It follows Obsidian's file deletion preference and keeps folders under excluded folder paths.
 
-Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully because it has a wider scope and can delete any attachment the plugin cannot find referenced in notes, canvas files, or supported frontmatter references. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind, or enable `Clear empty folders after image cleanup` to do that automatically.
+Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully because it has a wider scope and can delete any attachment the plugin cannot find referenced in notes, canvas files, or supported frontmatter references. The attachment cleanup flow shows a review modal before deletion. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind, or enable `Clear empty folders after image cleanup` to do that automatically.
 
 You can run cleanup from the ribbon icon or from the Command Palette with `Ctrl/Cmd + P`.
 
@@ -98,19 +109,21 @@ Use excluded folders to prevent cleanup from deleting files under specific vault
 
 ![Excluded folders](docs/assets/excluded-folders.png)
 
-You can also exclude every subfolder under those paths:
+Turn on `Exclude subfolders` if the excluded paths should protect every child folder too:
 
 ![Exclude subfolders](docs/assets/exclude-subfolders.png)
 
 ## Development
 
 ```bash
-npm install
+npm ci
 npm run dev
 npm test
 npm run build
 ```
 
+- `npm ci` installs the locked dependency set used by CI and release builds.
+- `npm install` is fine when you intentionally update dependencies.
 - `npm run dev` builds in watch mode.
 - `npm test` runs the Vitest suite.
 - `npm run build` creates the production `main.js` bundle.
@@ -141,12 +154,12 @@ GitHub Releases are published by GitHub Actions when a version tag is pushed.
 5. Create and push a version tag from `main`:
 
 ```bash
-git tag X.Y.Z
+git tag -s -m "X.Y.Z" X.Y.Z HEAD
 git push origin main
 git push origin X.Y.Z
 ```
 
-The release workflow verifies that the tag version matches `package.json`, `manifest.json`, and `versions.json`, rebuilds `main.js`, creates GitHub artifact attestations, and uploads `manifest.json`, `main.js`, and `styles.css` as release assets. Obsidian requires the GitHub release tag to match `manifest.json` exactly, so use `1.0.0`, not `v1.0.0`.
+The release workflow verifies that the tag version matches `package.json`, `manifest.json`, and `versions.json`, runs the release audit, rebuilds `main.js`, creates GitHub artifact attestations, and uploads `manifest.json`, `main.js`, and `styles.css` as release assets. Obsidian requires the GitHub release tag to match `manifest.json` exactly, so use `1.0.0`, not `v1.0.0`.
 
 ## Project Structure
 

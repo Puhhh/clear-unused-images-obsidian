@@ -1,22 +1,33 @@
+export const MAX_FRONTMATTER_WALK_DEPTH = 64;
+
 export const walkFrontmatterValues = (
     frontmatterValue: unknown,
-    visitString: (value: string) => void
+    visitString: (value: string) => void,
+    maxDepth = MAX_FRONTMATTER_WALK_DEPTH
 ): void => {
-    if (typeof frontmatterValue === 'string') {
-        visitString(frontmatterValue);
-        return;
-    }
-
-    if (Array.isArray(frontmatterValue)) {
-        for (const value of frontmatterValue) {
-            walkFrontmatterValues(value, visitString);
+    const visit = (value: unknown, depth: number): void => {
+        if (depth > maxDepth) {
+            return;
         }
-        return;
-    }
 
-    if (frontmatterValue && typeof frontmatterValue === 'object') {
-        for (const value of Object.values(frontmatterValue as Record<string, unknown>)) {
-            walkFrontmatterValues(value, visitString);
+        if (typeof value === 'string') {
+            visitString(value);
+            return;
         }
-    }
+
+        if (Array.isArray(value)) {
+            for (const nestedValue of value) {
+                visit(nestedValue, depth + 1);
+            }
+            return;
+        }
+
+        if (value && typeof value === 'object') {
+            for (const nestedValue of Object.values(value as Record<string, unknown>)) {
+                visit(nestedValue, depth + 1);
+            }
+        }
+    };
+
+    visit(frontmatterValue, 0);
 };
