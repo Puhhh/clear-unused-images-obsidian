@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, TFolder } from 'obsidian';
+import { Notice, Plugin, TFolder } from 'obsidian';
 import { OzanClearImagesSettingsTab } from './settings';
 import { OzanClearImagesSettings, DEFAULT_SETTINGS, normalizeDeleteOption } from './settings';
 import { LogsModal } from './modals';
@@ -200,13 +200,14 @@ export default class OzanClearImages extends Plugin {
 
         this.cleanupInProgress = true;
         try {
-            const unusedAttachments: TFile[] = await Util.getUnusedAttachments(this.app, type);
+            const { unusedAttachments, excludedAttachments } = await Util.getUnusedAttachments(this.app, type, this);
             const len = unusedAttachments.length;
             if (len > 0) {
                 if (type === 'all') {
                     const reviewAccepted = await new CleanupReviewModal(
                         this.app,
-                        unusedAttachments.map((file) => file.path)
+                        unusedAttachments.map((file) => file.path),
+                        excludedAttachments.map((file) => file.path)
                     ).prompt();
                     if (!reviewAccepted) {
                         new Notice('Cleanup cancelled.');
@@ -267,6 +268,18 @@ export default class OzanClearImages extends Plugin {
                     const modal = new LogsModal(logs, this.app);
                     modal.open();
                 }
+            } else if (excludedAttachments.length > 0) {
+                new Notice(
+                    `All unused ${
+                        type === 'image' ? 'images' : 'attachments'
+                    } are protected by your exclusions. Nothing was deleted.`
+                );
+
+                await new CleanupReviewModal(
+                    this.app,
+                    [],
+                    excludedAttachments.map((file) => file.path)
+                ).prompt();
             } else {
                 new Notice(`All ${type === 'image' ? 'images' : 'attachments'} are used. Nothing was deleted.`);
             }

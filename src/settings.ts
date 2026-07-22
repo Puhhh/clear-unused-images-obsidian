@@ -11,6 +11,7 @@ export interface OzanClearImagesSettings {
     deleteOption: DeleteOption;
     logsModal: boolean;
     excludedFolders: string;
+    excludedExtensions: string;
     ribbonIcon: boolean;
     excludeSubfolders: boolean;
     autoCleanOnVaultLoad: boolean;
@@ -33,6 +34,7 @@ export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
     deleteOption: 'trash',
     logsModal: true,
     excludedFolders: '',
+    excludedExtensions: '',
     ribbonIcon: false,
     excludeSubfolders: false,
     autoCleanOnVaultLoad: AUTO_CLEAN_ON_VAULT_LOAD_DEFAULT,
@@ -152,6 +154,23 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                     this.plugin.settings.excludeSubfolders = value;
                     void this.plugin.saveSettings();
                 })
+            );
+
+        new Setting(containerEl)
+            .setName('Excluded file extensions')
+            .setDesc(
+                `Provide file extensions divided by comma (,) to be excluded from clearing (case insensitive).
+						I.e. pdf, mp4 will keep all .pdf and .mp4 files even when they are not attached to any note.
+						This is useful for files you store in the vault but never link, such as PDFs viewed in Obsidian.`
+            )
+            .addTextArea((text) =>
+                text
+                    .setPlaceholder('Extensions, e.g. PDF, mp4')
+                    .setValue(this.plugin.settings.excludedExtensions)
+                    .onChange((value) => {
+                        this.plugin.settings.excludedExtensions = value;
+                        void this.plugin.saveSettings();
+                    })
             );
 
     }
