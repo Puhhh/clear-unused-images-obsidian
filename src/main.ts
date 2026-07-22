@@ -200,7 +200,7 @@ export default class OzanClearImages extends Plugin {
 
         this.cleanupInProgress = true;
         try {
-            const unusedAttachments: TFile[] = await Util.getUnusedAttachments(this.app, type);
+            const unusedAttachments: TFile[] = await Util.getUnusedAttachments(this.app, type, this);
             const len = unusedAttachments.length;
             if (len > 0) {
                 if (type === 'all') {

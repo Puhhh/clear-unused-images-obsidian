@@ -3,10 +3,32 @@ import { describe, expect, it } from 'vitest';
 import {
     extractMarkdownLinkMatches,
     hasImageExtension,
+    isExtensionExcluded,
     isPathCoveredByExcludedFolder,
     parseMarkdownLinkDestination,
     resolveVaultAttachmentReference,
+    splitExcludedExtensions,
 } from '../src/referenceUtils';
+
+describe('splitExcludedExtensions', () => {
+    it('normalizes casing, leading dots, whitespace, and blanks', () => {
+        const extensions = splitExcludedExtensions(' PDF, .Mp4 ,, txt , ');
+        expect([...extensions]).toEqual(['pdf', 'mp4', 'txt']);
+    });
+
+    it('returns an empty set for empty input', () => {
+        expect(splitExcludedExtensions('').size).toBe(0);
+    });
+});
+
+describe('isExtensionExcluded', () => {
+    it('matches case insensitively and ignores leading dots', () => {
+        const excluded = splitExcludedExtensions('pdf, mp4');
+        expect(isExtensionExcluded('PDF', excluded)).toBe(true);
+        expect(isExtensionExcluded('.pdf', excluded)).toBe(true);
+        expect(isExtensionExcluded('png', excluded)).toBe(false);
+    });
+});
 
 describe('hasImageExtension', () => {
     it('recognizes webp and strips query strings', () => {

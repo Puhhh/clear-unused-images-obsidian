@@ -5,8 +5,10 @@ import { getAllLinkMatchesInFile, LinkMatch } from './linkDetector';
 import {
     IMAGE_EXTENSIONS,
     hasImageExtension,
+    isExtensionExcluded,
     isPathCoveredByExcludedFolder,
     resolveVaultAttachmentReference,
+    splitExcludedExtensions,
     splitExcludedFolders,
 } from './referenceUtils';
 import { walkFrontmatterValues } from './frontmatterWalker';
@@ -32,8 +34,9 @@ interface CanvasData {
 }
 
 // Create the List of Unused Images
-export const getUnusedAttachments = async (app: App, type: 'image' | 'all') => {
-    const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type);
+export const getUnusedAttachments = async (app: App, type: 'image' | 'all', plugin?: OzanClearImages) => {
+    const excludedExtensions = splitExcludedExtensions(plugin?.settings.excludedExtensions ?? '');
+    const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type, excludedExtensions);
     const unusedAttachments: TFile[] = [];
 
     // Get Used Attachments in All Markdown Files
@@ -82,11 +85,15 @@ export const getUnusedFoldersFromDeletedFileParents = (
 };
 
 // Getting all available images saved in vault
-const getAttachmentsInVault = (app: App, type: 'image' | 'all'): TFile[] => {
+const getAttachmentsInVault = (app: App, type: 'image' | 'all', excludedExtensions: ReadonlySet<string>): TFile[] => {
     let allFiles: TFile[] = app.vault.getFiles();
     let attachments: TFile[] = [];
     for (let i = 0; i < allFiles.length; i++) {
         if (!['md', 'canvas'].includes(allFiles[i].extension)) {
+            // Skip file types the user chose to keep
+            if (isExtensionExcluded(allFiles[i].extension, excludedExtensions)) {
+                continue;
+            }
             // Only images
             if (IMAGE_EXTENSIONS.has(allFiles[i].extension.toLowerCase())) {
                 attachments.push(allFiles[i]);
