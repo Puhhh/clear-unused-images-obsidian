@@ -11,3 +11,16 @@
     align-items: center;
     justify-content: center;
 }
+
+.unused-images-excluded {
+    margin-bottom: 13px;
+}
+
+.unused-images-excluded > summary {
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.unused-images-excluded .unused-images-logs {
+    max-height: 30vh;
+}

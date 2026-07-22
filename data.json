@@ -1,0 +1,12 @@
+{
+  "deleteOption": "trash",
+  "logsModal": true,
+  "excludedFolders": "fonts, Excalidraw, ",
+  "excludedExtensions": "pdf, ",
+  "ribbonIcon": false,
+  "excludeSubfolders": true,
+  "autoCleanOnVaultLoad": false,
+  "autoCleanEveryXMinutes": false,
+  "autoCleanIntervalMinutes": 15,
+  "clearEmptyFoldersAfterImageCleanup": false
+}

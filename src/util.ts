@@ -34,20 +34,37 @@ interface CanvasData {
 }
 
 // Create the List of Unused Images
-export const getUnusedAttachments = async (app: App, type: 'image' | 'all', plugin?: OzanClearImages) => {
+export interface UnusedAttachmentsResult {
+    unusedAttachments: TFile[];
+    excludedAttachments: TFile[];
+}
+
+export const getUnusedAttachments = async (
+    app: App,
+    type: 'image' | 'all',
+    plugin?: OzanClearImages
+): Promise<UnusedAttachmentsResult> => {
     const excludedExtensions = splitExcludedExtensions(plugin?.settings.excludedExtensions ?? '');
     const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type, excludedExtensions);
     const unusedAttachments: TFile[] = [];
+    const excludedAttachments: TFile[] = [];
 
     // Get Used Attachments in All Markdown Files
     const usedAttachmentsSet = await getAttachmentPathSetForVault(app, type);
 
-    // Compare All Attachments vs Used Attachments
+    // Compare All Attachments vs Used Attachments, holding back anything protected by an excluded folder
     allAttachmentsInVault.forEach((attachment) => {
-        if (!usedAttachmentsSet.has(attachment.path)) unusedAttachments.push(attachment);
+        if (usedAttachmentsSet.has(attachment.path)) {
+            return;
+        }
+        if (plugin && fileIsInExcludedFolder(attachment, plugin)) {
+            excludedAttachments.push(attachment);
+            return;
+        }
+        unusedAttachments.push(attachment);
     });
 
-    return unusedAttachments;
+    return { unusedAttachments, excludedAttachments };
 };
 
 export const getUnusedFolders = (
