@@ -44,20 +44,19 @@ export const getUnusedAttachments = async (
     type: 'image' | 'all',
     plugin?: OzanClearImages
 ): Promise<UnusedAttachmentsResult> => {
-    const excludedExtensions = splitExcludedExtensions(plugin?.settings.excludedExtensions ?? '');
-    const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type, excludedExtensions);
+    const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type);
     const unusedAttachments: TFile[] = [];
     const excludedAttachments: TFile[] = [];
 
     // Get Used Attachments in All Markdown Files
     const usedAttachmentsSet = await getAttachmentPathSetForVault(app, type);
 
-    // Compare All Attachments vs Used Attachments, holding back anything protected by an excluded folder
+    // Compare All Attachments vs Used Attachments, holding back anything protected by an exclusion setting
     allAttachmentsInVault.forEach((attachment) => {
         if (usedAttachmentsSet.has(attachment.path)) {
             return;
         }
-        if (plugin && fileIsInExcludedFolder(attachment, plugin)) {
+        if (plugin && fileIsExcluded(attachment, plugin)) {
             excludedAttachments.push(attachment);
             return;
         }
@@ -102,15 +101,13 @@ export const getUnusedFoldersFromDeletedFileParents = (
 };
 
 // Getting all available images saved in vault
-const getAttachmentsInVault = (app: App, type: 'image' | 'all', excludedExtensions: ReadonlySet<string>): TFile[] => {
+// Excluded extensions are kept in the candidate list so that unused-but-protected files
+// can still be surfaced in the review preview; they are filtered out at classification time.
+const getAttachmentsInVault = (app: App, type: 'image' | 'all'): TFile[] => {
     let allFiles: TFile[] = app.vault.getFiles();
     let attachments: TFile[] = [];
     for (let i = 0; i < allFiles.length; i++) {
         if (!['md', 'canvas'].includes(allFiles[i].extension)) {
-            // Skip file types the user chose to keep
-            if (isExtensionExcluded(allFiles[i].extension, excludedExtensions)) {
-                continue;
-            }
             // Only images
             if (IMAGE_EXTENSIONS.has(allFiles[i].extension.toLowerCase())) {
                 attachments.push(allFiles[i]);
@@ -200,7 +197,7 @@ export const deleteFilesInTheList = async (
     const deletedParentFolderPaths = new Set<string>();
     const logLines: string[] = [];
     for (const file of fileList) {
-        if (fileIsInExcludedFolder(file, plugin)) {
+        if (fileIsExcluded(file, plugin)) {
             skippedImages++;
             logLines.push(`[=] Skipped excluded file: ${file.path}`);
         } else {
@@ -242,6 +239,16 @@ export const deleteFoldersInTheList = async (
     }
 
     return { deletedFolders, failedFolders, logLines };
+};
+
+// Check if File is Protected by Any Exclusion Setting (folder or extension)
+const fileIsExcluded = (file: TFile, plugin: OzanClearImages): boolean => {
+    return fileHasExcludedExtension(file, plugin) || fileIsInExcludedFolder(file, plugin);
+};
+
+// Check if File Has an Extension the User Chose to Keep
+const fileHasExcludedExtension = (file: TFile, plugin: OzanClearImages): boolean => {
+    return isExtensionExcluded(file.extension, splitExcludedExtensions(plugin.settings.excludedExtensions ?? ''));
 };
 
 // Check if File is Under Excluded Folders
