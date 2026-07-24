@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, TFolder } from 'obsidian';
+import { Notice, Plugin, TFolder } from 'obsidian';
 import { OzanClearImagesSettingsTab } from './settings';
 import { OzanClearImagesSettings, DEFAULT_SETTINGS, normalizeDeleteOption } from './settings';
 import { LogsModal } from './modals';
@@ -97,7 +97,7 @@ export default class OzanClearImages extends Plugin {
         const scheduleCleanup = createVaultLoadCleanupScheduler(
             (callback) => this.onVaultReady(callback),
             async (type) => {
-                await this.clearUnusedAttachments(type);
+                await this.clearUnusedAttachments(type, { silentIfBusy: true, interactive: false });
             }
         );
 
@@ -121,7 +121,7 @@ export default class OzanClearImages extends Plugin {
                     }
                 },
                 async (type) => {
-                    await this.clearUnusedAttachments(type);
+                    await this.clearUnusedAttachments(type, { silentIfBusy: true, interactive: false });
                 }
             );
         }
@@ -189,8 +189,9 @@ export default class OzanClearImages extends Plugin {
     // Compare Used Images with all images and return unused ones
     clearUnusedAttachments = async (
         type: 'all' | 'image',
-        options: { silentIfBusy?: boolean } = {}
+        options: { silentIfBusy?: boolean; interactive?: boolean } = {}
     ) => {
+        const interactive = options.interactive ?? true;
         if (this.cleanupInProgress) {
             if (!options.silentIfBusy) {
                 new Notice('Cleanup is already running.');
@@ -200,13 +201,14 @@ export default class OzanClearImages extends Plugin {
 
         this.cleanupInProgress = true;
         try {
-            const unusedAttachments: TFile[] = await Util.getUnusedAttachments(this.app, type);
+            const { unusedAttachments, excludedAttachments } = await Util.getUnusedAttachments(this.app, type, this);
             const len = unusedAttachments.length;
             if (len > 0) {
-                if (type === 'all') {
+                if (type === 'all' && interactive) {
                     const reviewAccepted = await new CleanupReviewModal(
                         this.app,
-                        unusedAttachments.map((file) => file.path)
+                        unusedAttachments.map((file) => file.path),
+                        excludedAttachments.map((file) => file.path)
                     ).prompt();
                     if (!reviewAccepted) {
                         new Notice('Cleanup cancelled.');
@@ -266,6 +268,20 @@ export default class OzanClearImages extends Plugin {
                 if (this.settings.logsModal || failedImages > 0 || (folderCleanupResult?.failedFolders ?? 0) > 0) {
                     const modal = new LogsModal(logs, this.app);
                     modal.open();
+                }
+            } else if (excludedAttachments.length > 0) {
+                new Notice(
+                    `All unused ${
+                        type === 'image' ? 'images' : 'attachments'
+                    } are protected by your exclusions. Nothing was deleted.`
+                );
+
+                if (interactive) {
+                    await new CleanupReviewModal(
+                        this.app,
+                        [],
+                        excludedAttachments.map((file) => file.path)
+                    ).prompt();
                 }
             } else {
                 new Notice(`All ${type === 'image' ? 'images' : 'attachments'} are used. Nothing was deleted.`);

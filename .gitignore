@@ -7,4 +7,5 @@ error/
 # Files
 .DS_Store
 .env
+data.json
 release-notes.md
