@@ -1,5 +1,6 @@
 import type OzanClearImages from './main';
-import { PluginSettingTab, Setting, App } from 'obsidian';
+import { PluginSettingTab, Setting } from 'obsidian';
+import type { App, SettingDefinitionItem } from 'obsidian';
 import {
     AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
     AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
@@ -43,12 +44,150 @@ export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
     clearEmptyFoldersAfterImageCleanup: false,
 };
 
+type SettingsControlKey = Exclude<keyof OzanClearImagesSettings, 'deleteOption'>;
+
 export class OzanClearImagesSettingsTab extends PluginSettingTab {
     plugin: OzanClearImages;
 
     constructor(app: App, plugin: OzanClearImages) {
         super(app, plugin);
         this.plugin = plugin;
+    }
+
+    getSettingDefinitions(): SettingDefinitionItem<SettingsControlKey>[] {
+        return [
+            {
+                type: 'group',
+                heading: 'Behavior',
+                items: [
+                    {
+                        name: 'Ribbon icon',
+                        desc: 'Turn on if you want ribbon icon for clearing the images.',
+                        aliases: ['toolbar', 'sidebar'],
+                        control: {
+                            type: 'toggle',
+                            key: 'ribbonIcon',
+                        },
+                    },
+                    {
+                        name: 'Delete logs',
+                        desc: 'Turn off if you dont want to view the delete logs modal to pop up after deletion is completed. It wont appear if no image is deleted',
+                        aliases: ['cleanup results', 'deletion report'],
+                        control: {
+                            type: 'toggle',
+                            key: 'logsModal',
+                        },
+                    },
+                    {
+                        name: 'Clean images on vault load',
+                        desc: 'Automatically run the unused image cleanup once after the vault layout is ready. Cleanup runs without review and moves unused images to Obsidian-configured trash. This setting starts working on the next vault load.',
+                        aliases: ['startup cleanup', 'automatic cleanup'],
+                        control: {
+                            type: 'toggle',
+                            key: 'autoCleanOnVaultLoad',
+                        },
+                    },
+                    {
+                        name: 'Clean images every X minutes',
+                        desc: 'Automatically run the unused image cleanup every X minutes while Obsidian stays open. Cleanup runs without review and moves unused images to Obsidian-configured trash. The timer starts after the vault layout is ready and waits for the full interval before the first run.',
+                        aliases: ['periodic cleanup', 'automatic cleanup', 'timer'],
+                        control: {
+                            type: 'toggle',
+                            key: 'autoCleanEveryXMinutes',
+                        },
+                    },
+                    {
+                        name: 'Clear empty folders after image cleanup',
+                        desc: 'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup.',
+                        aliases: ['delete empty folders', 'folder cleanup'],
+                        control: {
+                            type: 'toggle',
+                            key: 'clearEmptyFoldersAfterImageCleanup',
+                        },
+                    },
+                    {
+                        name: 'Cleanup interval in minutes',
+                        desc: 'Choose how many minutes the plugin waits between automatic image cleanup runs. Minimum: 1 minute.',
+                        aliases: ['periodic cleanup frequency', 'timer'],
+                        control: {
+                            type: 'number',
+                            key: 'autoCleanIntervalMinutes',
+                            defaultValue: AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
+                            min: 1,
+                            step: 1,
+                        },
+                    },
+                    {
+                        name: 'Excluded folder full paths',
+                        desc: 'Provide the full path of the folder names (case sensitive) divided by comma (,) to be excluded from clearing. I.e. For images under personal/files/puhhh -> personal/files/puhhh should be used for exclusion',
+                        aliases: ['protected folders', 'ignored folders'],
+                        control: {
+                            type: 'textarea',
+                            key: 'excludedFolders',
+                        },
+                    },
+                    {
+                        name: 'Exclude subfolders',
+                        desc: 'Turn on this option if you want to also exclude all subfolders of the folder paths provided above.',
+                        aliases: ['protected subfolders', 'ignored subfolders'],
+                        control: {
+                            type: 'toggle',
+                            key: 'excludeSubfolders',
+                        },
+                    },
+                    {
+                        name: 'Excluded file extensions',
+                        desc: 'Provide file extensions divided by comma (,) to be excluded from clearing (case insensitive). I.e. pdf, mp4 will keep all .pdf and .mp4 files even when they are not attached to any note. This is useful for files you store in the vault but never link, such as PDFs viewed in Obsidian.',
+                        aliases: ['protected file types', 'ignored extensions'],
+                        control: {
+                            type: 'textarea',
+                            key: 'excludedExtensions',
+                            placeholder: 'Extensions, e.g. PDF, mp4',
+                        },
+                    },
+                ],
+            },
+        ];
+    }
+
+    async setControlValue(key: string, value: unknown): Promise<void> {
+        switch (key) {
+            case 'ribbonIcon':
+            case 'logsModal':
+            case 'autoCleanOnVaultLoad':
+            case 'autoCleanEveryXMinutes':
+            case 'clearEmptyFoldersAfterImageCleanup':
+            case 'excludeSubfolders':
+                if (typeof value !== 'boolean') {
+                    return;
+                }
+                this.plugin.settings[key] = value;
+                break;
+            case 'excludedFolders':
+            case 'excludedExtensions':
+                if (typeof value !== 'string') {
+                    return;
+                }
+                this.plugin.settings[key] = value;
+                break;
+            case 'autoCleanIntervalMinutes':
+                if (typeof value !== 'number') {
+                    return;
+                }
+                this.plugin.settings.autoCleanIntervalMinutes = normalizeAutoCleanIntervalMinutes(value);
+                break;
+            default:
+                return;
+        }
+
+        await this.plugin.saveSettings();
+
+        if (key === 'ribbonIcon') {
+            this.plugin.refreshIconRibbon();
+        }
+        if (key === 'autoCleanEveryXMinutes' || key === 'autoCleanIntervalMinutes') {
+            this.plugin.refreshPeriodicCleanup();
+        }
     }
 
     display(): void {
@@ -83,7 +222,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Clean images on vault load')
             .setDesc(
-                'Automatically run the unused image cleanup once after the vault layout is ready. This setting only applies to images and starts working on the next vault load.'
+                'Automatically run the unused image cleanup once after the vault layout is ready. Cleanup runs without review and moves unused images to Obsidian-configured trash. This setting starts working on the next vault load.'
             )
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.autoCleanOnVaultLoad).onChange((value) => {
@@ -95,7 +234,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Clean images every X minutes')
             .setDesc(
-                'Automatically run the unused image cleanup every X minutes while Obsidian stays open. The timer starts after the vault layout is ready and waits for the full interval before the first run.'
+                'Automatically run the unused image cleanup every X minutes while Obsidian stays open. Cleanup runs without review and moves unused images to Obsidian-configured trash. The timer starts after the vault layout is ready and waits for the full interval before the first run.'
             )
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.autoCleanEveryXMinutes).onChange(async (value) => {

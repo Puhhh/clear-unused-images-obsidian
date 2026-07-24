@@ -33,8 +33,8 @@ export default class OzanClearImages extends Plugin {
     }
 
     private async initializePlugin(): Promise<void> {
-        this.addSettingTab(new OzanClearImagesSettingsTab(this.app, this));
         await this.loadSettings();
+        this.addSettingTab(new OzanClearImagesSettingsTab(this.app, this));
         this.addCommand({
             id: 'clear-images-obsidian',
             name: 'Clear unused images',
