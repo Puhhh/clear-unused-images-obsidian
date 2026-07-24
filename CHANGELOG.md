@@ -4,6 +4,12 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-07-24
+
+### Added
+
+- Added searchable plugin settings in Obsidian 1.13.0 and newer while preserving the standard settings page on older supported Obsidian versions.
+
 ## [1.6.0] - 2026-07-24
 
 ### Added

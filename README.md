@@ -1,7 +1,7 @@
 # Clear Unused Images Plus
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.0-blue)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-1.6.1-blue)](./manifest.json)
 [![Obsidian](https://img.shields.io/badge/Obsidian-1.8.10%2B-7c3aed?logo=obsidian&logoColor=white)](https://obsidian.md/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
@@ -24,6 +24,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 - Finds unused images in Obsidian vaults
 - Supports markdown links, wikilinks, canvas-linked files, and supported frontmatter image references
+- Searchable plugin settings in Obsidian 1.13.0 and newer
 - Deletes files and folders through Obsidian-configured trash
 - Optional review and log modal for cleanup results
 - Optional cleanup once after vault load
