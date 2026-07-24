@@ -65,6 +65,19 @@ export const parseMarkdownLinkDestination = (markdownMatch: string): string => {
     return unescapeMarkdownDestination(rawDestination.slice(0, destinationEnd).trim());
 };
 
+export const splitExcludedExtensions = (input: string): Set<string> => {
+    return new Set(
+        input
+            .split(',')
+            .map((extension) => extension.trim().replace(/^\.+/, '').toLowerCase())
+            .filter((extension) => extension.length > 0)
+    );
+};
+
+export const isExtensionExcluded = (extension: string, excludedExtensions: ReadonlySet<string>): boolean => {
+    return excludedExtensions.has(extension.trim().replace(/^\.+/, '').toLowerCase());
+};
+
 export const splitExcludedFolders = (input: string): string[] => {
     return input
         .split(',')

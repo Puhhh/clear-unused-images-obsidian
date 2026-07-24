@@ -4,6 +4,31 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-24
+
+### Added
+
+- Added an `Excluded file extensions` setting that always keeps the listed file types, whether or not they are linked from a note (case insensitive, leading dot optional).
+
+<img width="951" height="150" alt="image" src="https://github.com/user-attachments/assets/3ed7a705-5e30-4850-99d4-d8e64267bb9d" />
+
+- Added a collapsible protected-files section to the cleanup review dialog that lists the unused files your exclusion settings are keeping, so it is clear what was left behind and why.
+- Added a protected-files view to the cleanup review dialog for vaults where every unused file is excluded, replacing the delete confirmation with a read-only summary.
+
+<img width="713" height="306" alt="image" src="https://github.com/user-attachments/assets/620a9f9d-9eee-41a5-9513-86caf6cf4d14" />
+
+### Fixed
+
+- Listed unused files protected by excluded extensions in the cleanup review dialog alongside those protected by excluded folders, so a vault whose only unused files are excluded no longer reports that all attachments are used.
+
+### Security
+
+- Updated locked development dependencies to resolve findings reported by the release audit.
+
+### Contributors
+
+- Thanks to [@WolfExplode](https://github.com/WolfExplode) for their first merged contribution in [#10](https://github.com/Puhhh/clear-unused-images-obsidian/pull/10).
+
 ## [1.5.6] - 2026-06-17
 
 ### Changed

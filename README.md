@@ -1,7 +1,7 @@
 # Clear Unused Images Plus
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.6-blue)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](./manifest.json)
 [![Obsidian](https://img.shields.io/badge/Obsidian-1.8.10%2B-7c3aed?logo=obsidian&logoColor=white)](https://obsidian.md/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
@@ -30,6 +30,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - Optional recurring cleanup every configured number of minutes
 - Optional empty-folder cleanup after deleted images leave folders empty
 - Excluded folder paths with optional subfolder matching
+- Excluded file extensions to always keep certain file types (e.g. unlinked PDFs)
 - Separate commands for unused images, broader unused attachments, and empty folders
 
 ## Installation
@@ -112,6 +113,10 @@ Use excluded folders to prevent cleanup from deleting files under specific vault
 Turn on `Exclude subfolders` if the excluded paths should protect every child folder too:
 
 ![Exclude subfolders](docs/assets/exclude-subfolders.png)
+
+### Excluded File Extensions
+
+Use `Excluded file extensions` to keep specific file types regardless of whether they are linked from any note. Separate extensions with commas; matching is case insensitive and a leading dot is optional (`pdf, .mp4` both work). This is handy when you store files in the vault but never attach them — for example PDFs opened with Obsidian's PDF viewer.
 
 ## Development
 
