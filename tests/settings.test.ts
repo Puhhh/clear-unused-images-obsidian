@@ -61,6 +61,7 @@ describe('plugin settings defaults', () => {
             'Clean images every X minutes',
             'Clear empty folders after image cleanup',
             'Cleanup interval in minutes',
+            'Attachment folder suffixes',
             'Excluded folder full paths',
             'Exclude subfolders',
             'Excluded file extensions',

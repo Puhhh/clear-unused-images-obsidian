@@ -1,15 +1,27 @@
 import { App, Modal } from 'obsidian';
+import type { AttachmentFolderReviewItem } from './attachmentFolders';
+
+export interface CleanupReviewModalOptions {
+    filePaths: string[];
+    folderItems: AttachmentFolderReviewItem[];
+    excludedFilePaths?: string[];
+    protectedFolderItems?: AttachmentFolderReviewItem[];
+}
 
 export class CleanupReviewModal extends Modal {
     private readonly filePaths: string[];
+    private readonly folderItems: AttachmentFolderReviewItem[];
     private readonly excludedFilePaths: string[];
+    private readonly protectedFolderItems: AttachmentFolderReviewItem[];
     private resolveDecision: ((decision: boolean) => void) | undefined;
     private decisionResolved = false;
 
-    constructor(app: App, filePaths: string[], excludedFilePaths: string[] = []) {
+    constructor(app: App, options: CleanupReviewModalOptions) {
         super(app);
-        this.filePaths = filePaths;
-        this.excludedFilePaths = excludedFilePaths;
+        this.filePaths = options.filePaths;
+        this.folderItems = options.folderItems;
+        this.excludedFilePaths = options.excludedFilePaths ?? [];
+        this.protectedFolderItems = options.protectedFolderItems ?? [];
     }
 
     prompt(): Promise<boolean> {
@@ -23,49 +35,68 @@ export class CleanupReviewModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        const hasDeletableFiles = this.filePaths.length > 0;
+        const hasDeletableItems = this.filePaths.length > 0 || this.folderItems.length > 0;
 
         const headerWrapper = contentEl.createDiv();
         headerWrapper.addClass('unused-images-center-wrapper');
         headerWrapper
-            .createEl('h1', { text: hasDeletableFiles ? 'Review unused files' : 'Protected files' })
+            .createEl('h1', { text: hasDeletableItems ? 'Review unused attachments' : 'Protected attachments' })
             .addClass('modal-title');
 
         contentEl.createEl('p', {
-            text: hasDeletableFiles
-                ? 'These files will be deleted by clear unused attachments. Review the exact paths before continuing.'
-                : 'No unused files can be deleted. Everything unused is protected by your exclusion settings.',
+            text: hasDeletableItems
+                ? 'Review every file and folder below before moving them to Obsidian-configured trash.'
+                : 'Nothing can be deleted. These items are protected by exclusions or folder safety checks.',
         });
 
-        if (hasDeletableFiles) {
+        if (this.filePaths.length > 0) {
+            contentEl.createEl('h2', { text: `Files to move to trash (${this.filePaths.length.toString()})` });
             this.renderFileList(contentEl, this.filePaths);
+        }
+
+        if (this.folderItems.length > 0) {
+            contentEl.createEl('h2', { text: `Folders to move to trash (${this.folderItems.length.toString()})` });
+            this.renderFolderList(contentEl, this.folderItems, false);
         }
 
         if (this.excludedFilePaths.length > 0) {
             const excludedDetails = contentEl.createEl('details');
             excludedDetails.addClass('unused-images-excluded');
             // Expand automatically when the protected files are the only thing to review.
-            excludedDetails.open = !hasDeletableFiles;
+            excludedDetails.open = !hasDeletableItems;
             excludedDetails.createEl('summary', {
                 text: `${this.excludedFilePaths.length.toString()} ${
-                    hasDeletableFiles ? 'other ' : ''
+                    hasDeletableItems ? 'other ' : ''
                 }unused file(s) are protected by your exclusion settings (click to review).`,
             });
             this.renderFileList(excludedDetails, this.excludedFilePaths);
         }
 
+        if (this.protectedFolderItems.length > 0) {
+            const protectedFolderDetails = contentEl.createEl('details');
+            protectedFolderDetails.addClass('unused-images-excluded');
+            protectedFolderDetails.open = !hasDeletableItems;
+            protectedFolderDetails.createEl('summary', {
+                text: `${this.protectedFolderItems.length.toString()} attachment folder(s) are protected (click to review).`,
+            });
+            this.renderFolderList(protectedFolderDetails, this.protectedFolderItems, true);
+        }
+
         const buttonWrapper = contentEl.createDiv();
         buttonWrapper.addClass('unused-images-center-wrapper');
 
-        if (hasDeletableFiles) {
+        if (hasDeletableItems) {
             const cancelButton = buttonWrapper.createEl('button', { text: 'Cancel' });
             cancelButton.addClass('unused-images-button');
             cancelButton.addEventListener('click', () => {
                 this.closeWithDecision(false);
             });
 
-            const continueButton = buttonWrapper.createEl('button', { text: 'Continue' });
+            const continueButton = buttonWrapper.createEl('button', {
+                text: `Move ${this.filePaths.length.toString()} file(s) and ${this.folderItems.length.toString()} folder(s) to trash`,
+            });
             continueButton.addClass('unused-images-button');
+            continueButton.addClass('mod-warning');
             continueButton.addEventListener('click', () => {
                 this.closeWithDecision(true);
             });
@@ -83,6 +114,25 @@ export class CleanupReviewModal extends Modal {
         listWrapper.addClass('unused-images-logs');
         for (const filePath of filePaths) {
             listWrapper.createDiv({ text: filePath });
+        }
+    }
+
+    private renderFolderList(
+        parentEl: HTMLElement,
+        folderItems: AttachmentFolderReviewItem[],
+        showProtectedReason: boolean
+    ): void {
+        const listWrapper = parentEl.createDiv();
+        listWrapper.addClass('unused-images-logs');
+        for (const folderItem of folderItems) {
+            const details = listWrapper.createEl('details');
+            details.createEl('summary', {
+                text: `${folderItem.path}/ — ${folderItem.descendantPaths.length.toString()} descendant item(s), suffix ${folderItem.matchedSuffix}`,
+            });
+            if (showProtectedReason && folderItem.protectedReason) {
+                details.createEl('p', { text: folderItem.protectedReason });
+            }
+            this.renderFileList(details, folderItem.descendantPaths);
         }
     }
 

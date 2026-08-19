@@ -12,6 +12,7 @@ import {
     splitExcludedFolders,
 } from './referenceUtils';
 import { walkFrontmatterValues } from './frontmatterWalker';
+import { isPathInsideFolder } from './attachmentFolders';
 
 /* ------------------ Image Handlers  ------------------ */
 
@@ -42,9 +43,13 @@ export interface UnusedAttachmentsResult {
 export const getUnusedAttachments = async (
     app: App,
     type: 'image' | 'all',
-    plugin?: OzanClearImages
+    plugin?: OzanClearImages,
+    atomicFolderPaths: ReadonlySet<string> = new Set<string>()
 ): Promise<UnusedAttachmentsResult> => {
-    const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type);
+    const atomicFolderPathList = [...atomicFolderPaths];
+    const allAttachmentsInVault: TFile[] = getAttachmentsInVault(app, type).filter(
+        (attachment) => !atomicFolderPathList.some((folderPath) => isPathInsideFolder(attachment.path, folderPath))
+    );
     const unusedAttachments: TFile[] = [];
     const excludedAttachments: TFile[] = [];
 

@@ -4,6 +4,17 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-19
+
+### Added
+
+- Added an `Attachment folder suffixes` setting that can treat matching folders as atomic attachments during manual `Clear unused attachments`, with external-reference and exclusion checks plus an explicit folder review.
+
+### Security
+
+- Revalidated reviewed attachment folders, their descendants, configured suffixes, references, and exclusions immediately before moving each folder to Obsidian-configured trash.
+- Updated locked development dependencies to versions that pass the release audit.
+
 ## [1.6.1] - 2026-07-24
 
 ### Added

@@ -19,6 +19,7 @@ export interface OzanClearImagesSettings {
     autoCleanEveryXMinutes: boolean;
     autoCleanIntervalMinutes: number;
     clearEmptyFoldersAfterImageCleanup: boolean;
+    attachmentFolderSuffixes: string;
 }
 
 export type DeleteOption = 'trash';
@@ -42,6 +43,7 @@ export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
     autoCleanEveryXMinutes: AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
     autoCleanIntervalMinutes: AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
     clearEmptyFoldersAfterImageCleanup: false,
+    attachmentFolderSuffixes: '',
 };
 
 type SettingsControlKey = Exclude<keyof OzanClearImagesSettings, 'deleteOption'>;
@@ -118,6 +120,16 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                         },
                     },
                     {
+                        name: 'Attachment folder suffixes',
+                        desc: 'Treat folders ending with these literal suffixes as atomic attachments during manual clear unused attachments. Use comma-separated values beginning with a dot, such as .HTML, .Excalidraw. A folder is kept if any outside note or canvas references a descendant, or if it intersects an exclusion.',
+                        aliases: ['folder attachments', 'atomic folders', 'folder suffixes'],
+                        control: {
+                            type: 'textarea',
+                            key: 'attachmentFolderSuffixes',
+                            placeholder: 'Suffixes, e.g. .HTML, .Excalidraw',
+                        },
+                    },
+                    {
                         name: 'Excluded folder full paths',
                         desc: 'Provide the full path of the folder names (case sensitive) divided by comma (,) to be excluded from clearing. I.e. For images under personal/files/puhhh -> personal/files/puhhh should be used for exclusion',
                         aliases: ['protected folders', 'ignored folders'],
@@ -165,6 +177,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                 break;
             case 'excludedFolders':
             case 'excludedExtensions':
+            case 'attachmentFolderSuffixes':
                 if (typeof value !== 'string') {
                     return;
                 }
@@ -273,6 +286,21 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName('Attachment folder suffixes')
+            .setDesc(
+                'Treat folders ending with these literal suffixes as atomic attachments during manual clear unused attachments. Enter comma-separated values beginning with a dot, such as .HTML, .Excalidraw. The review dialog always shows folders before they are moved to trash.'
+            )
+            .addTextArea((text) =>
+                text
+                    .setPlaceholder('Suffixes, e.g. .HTML, .Excalidraw')
+                    .setValue(this.plugin.settings.attachmentFolderSuffixes)
+                    .onChange((value) => {
+                        this.plugin.settings.attachmentFolderSuffixes = value;
+                        void this.plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
             .setName('Excluded folder full paths')
             .setDesc(
                 `Provide the full path of the folder names (case sensitive) divided by comma (,) to be excluded from clearing.
@@ -311,6 +339,5 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                         void this.plugin.saveSettings();
                     })
             );
-
     }
 }

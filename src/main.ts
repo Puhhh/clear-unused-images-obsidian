@@ -6,6 +6,11 @@ import { CleanupReviewModal } from './reviewModal';
 import * as Util from './util';
 import { shouldClearEmptyFoldersAfterAttachmentCleanup } from './cleanupFlow';
 import { createPeriodicCleanupScheduler, createVaultLoadCleanupScheduler } from './startupCleanup';
+import {
+    AttachmentFolderPlan,
+    deleteReviewedAttachmentFolders,
+    planAttachmentFolders,
+} from './attachmentFolders';
 
 interface FolderCleanupResult {
     deletedFolders: number;
@@ -201,15 +206,36 @@ export default class OzanClearImages extends Plugin {
 
         this.cleanupInProgress = true;
         try {
-            const { unusedAttachments, excludedAttachments } = await Util.getUnusedAttachments(this.app, type, this);
-            const len = unusedAttachments.length;
-            if (len > 0) {
+            let attachmentFolderPlan: AttachmentFolderPlan = {
+                deletableFolders: [],
+                protectedFolders: [],
+                candidateFolderPaths: new Set<string>(),
+                normalizedSuffixes: [],
+            };
+            if (type === 'all' && interactive && (this.settings.attachmentFolderSuffixes ?? '').trim() !== '') {
+                attachmentFolderPlan = await planAttachmentFolders(this.app, this.settings);
+                if (attachmentFolderPlan.validationError) {
+                    new Notice(attachmentFolderPlan.validationError);
+                    return;
+                }
+            }
+
+            const { unusedAttachments, excludedAttachments } = await Util.getUnusedAttachments(
+                this.app,
+                type,
+                this,
+                attachmentFolderPlan.candidateFolderPaths
+            );
+            const deletableItemCount = unusedAttachments.length + attachmentFolderPlan.deletableFolders.length;
+            const protectedItemCount = excludedAttachments.length + attachmentFolderPlan.protectedFolders.length;
+            if (deletableItemCount > 0) {
                 if (type === 'all' && interactive) {
-                    const reviewAccepted = await new CleanupReviewModal(
-                        this.app,
-                        unusedAttachments.map((file) => file.path),
-                        excludedAttachments.map((file) => file.path)
-                    ).prompt();
+                    const reviewAccepted = await new CleanupReviewModal(this.app, {
+                        filePaths: unusedAttachments.map((file) => file.path),
+                        folderItems: attachmentFolderPlan.deletableFolders,
+                        excludedFilePaths: excludedAttachments.map((file) => file.path),
+                        protectedFolderItems: attachmentFolderPlan.protectedFolders,
+                    }).prompt();
                     if (!reviewAccepted) {
                         new Notice('Cleanup cancelled.');
                         return;
@@ -231,6 +257,32 @@ export default class OzanClearImages extends Plugin {
                     logs.push(`[!] ${failedImages.toString()} file(s) failed to delete.`);
                 }
 
+                const attachmentFolderDeletionResult =
+                    type === 'all' && interactive && attachmentFolderPlan.deletableFolders.length > 0
+                        ? await deleteReviewedAttachmentFolders(
+                              this.app,
+                              this.settings,
+                              attachmentFolderPlan.deletableFolders,
+                              attachmentFolderPlan.normalizedSuffixes
+                          )
+                        : { deletedFolders: 0, failedFolders: 0, skippedFolders: 0, logLines: [] };
+                logs.push(...attachmentFolderDeletionResult.logLines);
+                if (attachmentFolderDeletionResult.deletedFolders > 0) {
+                    logs.push(
+                        `[+] ${attachmentFolderDeletionResult.deletedFolders.toString()} attachment folder(s) deleted.`
+                    );
+                }
+                if (attachmentFolderDeletionResult.skippedFolders > 0) {
+                    logs.push(
+                        `[=] ${attachmentFolderDeletionResult.skippedFolders.toString()} attachment folder(s) changed or became protected after review.`
+                    );
+                }
+                if (attachmentFolderDeletionResult.failedFolders > 0) {
+                    logs.push(
+                        `[!] ${attachmentFolderDeletionResult.failedFolders.toString()} attachment folder(s) failed to delete.`
+                    );
+                }
+
                 let folderCleanupResult: FolderCleanupResult | null = null;
                 if (
                     shouldClearEmptyFoldersAfterAttachmentCleanup({
@@ -247,41 +299,56 @@ export default class OzanClearImages extends Plugin {
 
                 logs.push(`[+] ${Util.getFormattedDate()}: Clearing completed.`);
 
-                if (failedImages > 0) {
-                    new Notice(`Cleanup finished with ${failedImages.toString()} deletion error(s). Check logs.`);
+                const deletionErrors = failedImages + attachmentFolderDeletionResult.failedFolders;
+                if (deletionErrors > 0) {
+                    new Notice(`Cleanup finished with ${deletionErrors.toString()} deletion error(s). Check logs.`);
+                } else if (attachmentFolderDeletionResult.skippedFolders > 0) {
+                    new Notice(
+                        `Cleanup finished, but ${attachmentFolderDeletionResult.skippedFolders.toString()} attachment folder(s) changed or became protected. Rerun cleanup.`
+                    );
                 } else if (folderCleanupResult?.failedFolders) {
                     new Notice(
                         `Image cleanup finished with ${folderCleanupResult.failedFolders.toString()} folder deletion error(s). Check logs.`
                     );
-                } else if (deletedImages > 0) {
+                } else if (deletedImages > 0 || attachmentFolderDeletionResult.deletedFolders > 0) {
                     const folderNotice =
                         folderCleanupResult && folderCleanupResult.deletedFolders > 0
                             ? ` and ${folderCleanupResult.deletedFolders.toString()} empty folder(s)`
                             : '';
+                    const attachmentFolderNotice =
+                        attachmentFolderDeletionResult.deletedFolders > 0
+                            ? ` and ${attachmentFolderDeletionResult.deletedFolders.toString()} attachment folder(s)`
+                            : '';
                     new Notice(
                         `Deleted ${deletedImages.toString()} unused ${
                             type === 'image' ? 'image(s)' : 'attachment(s)'
-                        }${folderNotice}.`
+                        }${attachmentFolderNotice}${folderNotice}.`
                     );
                 }
 
-                if (this.settings.logsModal || failedImages > 0 || (folderCleanupResult?.failedFolders ?? 0) > 0) {
+                if (
+                    this.settings.logsModal ||
+                    deletionErrors > 0 ||
+                    attachmentFolderDeletionResult.skippedFolders > 0 ||
+                    (folderCleanupResult?.failedFolders ?? 0) > 0
+                ) {
                     const modal = new LogsModal(logs, this.app);
                     modal.open();
                 }
-            } else if (excludedAttachments.length > 0) {
+            } else if (protectedItemCount > 0) {
                 new Notice(
                     `All unused ${
                         type === 'image' ? 'images' : 'attachments'
-                    } are protected by your exclusions. Nothing was deleted.`
+                    } are protected by your exclusions or folder safety checks. Nothing was deleted.`
                 );
 
                 if (interactive) {
-                    await new CleanupReviewModal(
-                        this.app,
-                        [],
-                        excludedAttachments.map((file) => file.path)
-                    ).prompt();
+                    await new CleanupReviewModal(this.app, {
+                        filePaths: [],
+                        folderItems: [],
+                        excludedFilePaths: excludedAttachments.map((file) => file.path),
+                        protectedFolderItems: attachmentFolderPlan.protectedFolders,
+                    }).prompt();
                 }
             } else {
                 new Notice(`All ${type === 'image' ? 'images' : 'attachments'} are used. Nothing was deleted.`);
