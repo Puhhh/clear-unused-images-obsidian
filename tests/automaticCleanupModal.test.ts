@@ -19,9 +19,19 @@ vi.mock('../src/util', async () => {
     };
 });
 
+vi.mock('../src/attachmentFolders', async () => {
+    const actual = await vi.importActual<typeof import('../src/attachmentFolders')>('../src/attachmentFolders');
+    return {
+        ...actual,
+        planAttachmentFolders: vi.fn(),
+        deleteReviewedAttachmentFolders: vi.fn(),
+    };
+});
+
 import OzanClearImages from '../src/main';
 import * as Util from '../src/util';
 import { CleanupReviewModal } from '../src/reviewModal';
+import * as AttachmentFolders from '../src/attachmentFolders';
 
 const excludedFile = { path: 'protected.png' } as TFile;
 
@@ -34,6 +44,8 @@ describe('automatic cleanup with fully excluded unused images', () => {
             unusedAttachments: [],
             excludedAttachments: [excludedFile],
         });
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockReset();
+        (AttachmentFolders.deleteReviewedAttachmentFolders as ReturnType<typeof vi.fn>).mockReset();
     });
 
     const createPlugin = (): OzanClearImages => {
@@ -72,5 +84,16 @@ describe('automatic cleanup with fully excluded unused images', () => {
 
         expect(CleanupReviewModal).toHaveBeenCalledTimes(1);
         expect(promptMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('never plans attachment folders during image or non-interactive cleanup', async () => {
+        const plugin = createPlugin();
+        plugin.settings.attachmentFolderSuffixes = '.html';
+
+        await plugin.clearUnusedAttachments('image');
+        await plugin.clearUnusedAttachments('all', { interactive: false });
+
+        expect(AttachmentFolders.planAttachmentFolders).not.toHaveBeenCalled();
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).not.toHaveBeenCalled();
     });
 });

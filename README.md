@@ -1,7 +1,7 @@
 # Clear Unused Images Plus
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.1-blue)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue)](./manifest.json)
 [![Obsidian](https://img.shields.io/badge/Obsidian-1.8.10%2B-7c3aed?logo=obsidian&logoColor=white)](https://obsidian.md/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
@@ -26,7 +26,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - Supports markdown links, wikilinks, canvas-linked files, and supported frontmatter image references
 - Searchable plugin settings in Obsidian 1.13.0 and newer
 - Deletes files and folders through Obsidian-configured trash
-- Optional review and log modal for cleanup results
+- Mandatory review before broader attachment cleanup, with optional cleanup logs
+- Configurable literal suffixes for treating folder-based attachments as atomic cleanup units
 - Optional cleanup once after vault load
 - Optional recurring cleanup every configured number of minutes
 - Optional empty-folder cleanup after deleted images leave folders empty
@@ -61,10 +62,10 @@ Deleted files and folders follow Obsidian's own file deletion preference:
 The plugin provides three cleanup commands:
 
 - `Clear unused images` checks only image files. It is limited to jpg, jpeg, png, gif, svg, bmp, and webp.
-- `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include PDFs, audio, video, archives, and other non-markdown files.
+- `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include PDFs, audio, video, archives, and other non-markdown files. When attachment folder suffixes are configured, it also reviews matching folders and all their descendants as atomic attachment units.
 - `Clear unused folders` removes empty folders recursively, starting with the deepest folders first. It follows Obsidian's file deletion preference and keeps folders under excluded folder paths.
 
-Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully because it has a wider scope and can delete any attachment the plugin cannot find referenced in notes, canvas files, or supported frontmatter references. The attachment cleanup flow shows a review modal before deletion. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind, or enable `Clear empty folders after image cleanup` to do that automatically.
+Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully because it has a wider scope: it can move any unreferenced non-note attachment, or every descendant of an approved matching attachment folder, to trash. The attachment cleanup flow always shows a review modal before deletion. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind, or enable `Clear empty folders after image cleanup` to do that automatically.
 
 You can run cleanup from the ribbon icon or from the Command Palette with `Ctrl/Cmd + P`.
 
@@ -79,6 +80,18 @@ If `Delete Logs` is enabled, the plugin shows a modal with information about del
 If all images are still used, the plugin reports that nothing was deleted:
 
 ![Nothing deleted](docs/assets/nothing-deleted.png)
+
+### Attachment Folders
+
+Use `Attachment folder suffixes` to treat folders whose names end with configured values as single attachments during manual `Clear unused attachments`. Enter comma-separated literal suffixes beginning with a dot, such as `.html, .excalidraw`. Matching is case insensitive; configured values are not regular expressions or wildcard patterns.
+
+- This setting applies only to manual `Clear unused attachments`. It does not affect `Clear unused images`, vault-load cleanup, periodic cleanup, or `Clear unused folders`.
+- The review modal shows each outermost matching folder and its descendants as one folder item. Continuing moves the whole folder, including any Markdown files inside it, to Obsidian-configured trash.
+- A folder is protected if a reference from outside the folder points to any descendant, if it intersects a configured excluded folder path, or if it contains a file with an excluded extension. References between descendants inside the same folder do not protect it.
+- If the reference scan cannot finish, the plugin keeps the folder.
+- Before deleting each reviewed folder, the plugin rescans references and exclusions and verifies that the suffix settings and reviewed descendants have not changed. If the folder changed or became protected, cleanup skips it and asks you to run the command again.
+
+You can configure up to 50 suffixes, with a maximum of 64 characters each. Values containing path separators or `..` are rejected, and an invalid setting stops the manual attachment cleanup before anything is moved to trash.
 
 ### Automatic Cleanup
 
@@ -173,6 +186,7 @@ The release workflow verifies that the tag version matches `package.json`, `mani
 - `src/util.ts` - vault scanning and cleanup orchestration
 - `src/linkDetector.ts` - markdown and wikilink reference detection
 - `src/referenceUtils.ts` - pure reference and path helpers
+- `src/attachmentFolders.ts` - atomic attachment-folder planning, safety checks, and deletion revalidation
 - `src/folderCleanup.ts` - empty-folder cleanup behavior
 - `tests/` - regression coverage for cleanup, references, settings, and scheduling
 - `docs/assets/` - screenshot assets used in this README
