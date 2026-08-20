@@ -2,7 +2,12 @@ import { App, TAbstractFile, TFile, TFolder } from 'obsidian';
 
 import { walkFrontmatterValues } from './frontmatterWalker';
 import { getAllLinkMatchesInFile } from './linkDetector';
-import { isExtensionExcluded, splitExcludedExtensions, splitExcludedFolders } from './referenceUtils';
+import {
+    hasImageExtension,
+    isExtensionExcluded,
+    splitExcludedExtensions,
+    splitExcludedFolders,
+} from './referenceUtils';
 import {
     AttachmentFolderRule,
     matchAttachmentFolderRule,
@@ -15,9 +20,12 @@ const FRONTMATTER_WIKI_LINK_REGEX = /^!?\[\[(.*?)\]\]$/;
 
 interface AttachmentFolderSettings {
     attachmentFolderSuffixes: string;
+    imageFolderRules: string;
     excludedFolders: string;
     excludedExtensions: string;
 }
+
+export type AtomicFolderRuleScope = 'attachment' | 'image';
 
 interface ReferenceEdge {
     sourcePath: string;
@@ -68,9 +76,10 @@ export interface AttachmentFolderDeletionResult {
 
 export const planAttachmentFolders = async (
     app: App,
-    settings: AttachmentFolderSettings
+    settings: AttachmentFolderSettings,
+    ruleScope: AtomicFolderRuleScope = 'attachment'
 ): Promise<AttachmentFolderPlan> => {
-    const parsedRules = parseAttachmentFolderRules(settings.attachmentFolderSuffixes);
+    const parsedRules = parseAttachmentFolderRules(getFolderRuleText(settings, ruleScope));
     if (parsedRules.error || parsedRules.rules.length === 0) {
         return {
             deletableFolders: [],
@@ -78,7 +87,7 @@ export const planAttachmentFolders = async (
             candidateFolderPaths: new Set<string>(),
             normalizedRules: parsedRules.canonicalRules,
             parentFolderPaths: [],
-            validationError: parsedRules.error,
+            validationError: scopeRuleError(parsedRules.error, ruleScope),
         };
     }
 
@@ -90,11 +99,13 @@ export const planAttachmentFolders = async (
             candidateFolderPaths: new Set<string>(),
             normalizedRules: parsedRules.canonicalRules,
             parentFolderPaths: [],
-            validationError: discovery.error,
+            validationError: scopeRuleError(discovery.error, ruleScope),
         };
     }
 
-    const candidates = discovery.candidates;
+    const candidates = discovery.candidates.filter(({ folder }) =>
+        ruleScope === 'attachment' ? true : folderContainsImage(folder)
+    );
     const candidateFolderPaths = new Set(candidates.map(({ folder }) => folder.path));
     if (candidates.length === 0) {
         return {
@@ -167,7 +178,8 @@ export const deleteReviewedAttachmentFolders = async (
     settings: AttachmentFolderSettings,
     reviewedFolders: readonly AttachmentFolderReviewItem[],
     reviewedRules: readonly string[],
-    reviewedParentFolderPaths: readonly string[]
+    reviewedParentFolderPaths: readonly string[],
+    ruleScope: AtomicFolderRuleScope = 'attachment'
 ): Promise<AttachmentFolderDeletionResult> => {
     const logLines: string[] = [];
     let deletedFolders = 0;
@@ -176,20 +188,22 @@ export const deleteReviewedAttachmentFolders = async (
     let deletedParentFolders = 0;
     let failedParentFolders = 0;
     let skippedParentFolders = 0;
+    const folderLabel = ruleScope === 'image' ? 'image folder' : 'attachment folder';
+    const parentFolderLabel = ruleScope === 'image' ? 'image parent folder' : 'attachment parent folder';
     const reviewedParentPaths = new Set(reviewedParentFolderPaths);
     const successfulParentPaths = new Set<string>();
     const blockedParentPaths = new Set<string>();
 
     for (const reviewedFolder of reviewedFolders) {
         const parentPath = reviewedFolder.emptyParentPath;
-        const currentPlan = await planAttachmentFolders(app, settings);
+        const currentPlan = await planAttachmentFolders(app, settings, ruleScope);
         if (currentPlan.validationError || !arraysEqual(currentPlan.normalizedRules, reviewedRules)) {
-            const reason = currentPlan.validationError ?? 'attachment folder rules changed since review';
+            const reason = currentPlan.validationError ?? `${folderLabel} rules changed since review`;
             skippedFolders++;
             if (parentPath) {
                 blockedParentPaths.add(parentPath);
             }
-            logLines.push(`[=] Skipped attachment folder ${reviewedFolder.path}: ${reason}; rerun cleanup.`);
+            logLines.push(`[=] Skipped ${folderLabel} ${reviewedFolder.path}: ${reason}; rerun cleanup.`);
             continue;
         }
 
@@ -206,7 +220,7 @@ export const deleteReviewedAttachmentFolders = async (
                 blockedParentPaths.add(parentPath);
             }
             logLines.push(
-                `[=] Skipped attachment folder ${reviewedFolder.path}: changed or became protected since review; rerun cleanup.`
+                `[=] Skipped ${folderLabel} ${reviewedFolder.path}: changed or became protected since review; rerun cleanup.`
             );
             continue;
         }
@@ -217,34 +231,34 @@ export const deleteReviewedAttachmentFolders = async (
             if (parentPath && reviewedParentPaths.has(parentPath)) {
                 successfulParentPaths.add(parentPath);
             }
-            logLines.push(`[+] Moved attachment folder to Obsidian-configured trash: ${reviewedFolder.path}`);
+            logLines.push(`[+] Moved ${folderLabel} to Obsidian-configured trash: ${reviewedFolder.path}`);
         } catch (error) {
             failedFolders++;
             if (parentPath) {
                 blockedParentPaths.add(parentPath);
             }
-            logLines.push(`[!] Failed to delete attachment folder ${reviewedFolder.path}: ${getErrorMessage(error)}`);
+            logLines.push(`[!] Failed to delete ${folderLabel} ${reviewedFolder.path}: ${getErrorMessage(error)}`);
         }
     }
 
     for (const parentPath of successfulParentPaths) {
         if (blockedParentPaths.has(parentPath)) {
             skippedParentFolders++;
-            logLines.push(`[=] Kept attachment parent folder ${parentPath}: a reviewed child was not deleted.`);
+            logLines.push(`[=] Kept ${parentFolderLabel} ${parentPath}: a reviewed child was not deleted.`);
             continue;
         }
 
-        const parsedRules = parseAttachmentFolderRules(settings.attachmentFolderSuffixes);
+        const parsedRules = parseAttachmentFolderRules(getFolderRuleText(settings, ruleScope));
         if (parsedRules.error || !arraysEqual(parsedRules.canonicalRules, reviewedRules)) {
             skippedParentFolders++;
-            logLines.push(`[=] Kept attachment parent folder ${parentPath}: attachment folder rules changed; rerun cleanup.`);
+            logLines.push(`[=] Kept ${parentFolderLabel} ${parentPath}: ${folderLabel} rules changed; rerun cleanup.`);
             continue;
         }
 
         const parentFolder = app.vault.getAbstractFileByPath(parentPath);
         if (!(parentFolder instanceof TFolder) || parentFolder.isRoot()) {
             skippedParentFolders++;
-            logLines.push(`[=] Kept attachment parent folder ${parentPath}: it is missing, changed, or is the vault root.`);
+            logLines.push(`[=] Kept ${parentFolderLabel} ${parentPath}: it is missing, changed, or is the vault root.`);
             continue;
         }
 
@@ -255,22 +269,22 @@ export const deleteReviewedAttachmentFolders = async (
         );
         if (exclusionReason) {
             skippedParentFolders++;
-            logLines.push(`[=] Kept attachment parent folder ${parentPath}: ${exclusionReason}.`);
+            logLines.push(`[=] Kept ${parentFolderLabel} ${parentPath}: ${exclusionReason}.`);
             continue;
         }
 
         if (parentFolder.children.length > 0) {
-            logLines.push(`[=] Kept attachment parent folder ${parentPath}: it is not empty.`);
+            logLines.push(`[=] Kept ${parentFolderLabel} ${parentPath}: it is not empty.`);
             continue;
         }
 
         try {
             await app.fileManager.trashFile(parentFolder);
             deletedParentFolders++;
-            logLines.push(`[+] Moved empty attachment parent folder to Obsidian-configured trash: ${parentPath}`);
+            logLines.push(`[+] Moved empty ${parentFolderLabel} to Obsidian-configured trash: ${parentPath}`);
         } catch (error) {
             failedParentFolders++;
-            logLines.push(`[!] Failed to delete empty attachment parent folder ${parentPath}: ${getErrorMessage(error)}`);
+            logLines.push(`[!] Failed to delete empty ${parentFolderLabel} ${parentPath}: ${getErrorMessage(error)}`);
         }
     }
 
@@ -494,6 +508,30 @@ const collectDescendants = (folder: TFolder): TAbstractFile[] => {
 
     visit(folder);
     return descendants;
+};
+
+const folderContainsImage = (folder: TFolder): boolean => {
+    return collectDescendants(folder).some(
+        (descendant) => descendant instanceof TFile && hasImageExtension(descendant.path)
+    );
+};
+
+const getFolderRuleText = (
+    settings: AttachmentFolderSettings,
+    ruleScope: AtomicFolderRuleScope
+): string => {
+    return ruleScope === 'image' ? settings.imageFolderRules : settings.attachmentFolderSuffixes;
+};
+
+const scopeRuleError = (
+    error: string | undefined,
+    ruleScope: AtomicFolderRuleScope
+): string | undefined => {
+    if (!error || ruleScope === 'attachment') {
+        return error;
+    }
+
+    return error.replace(/Attachment folder/g, 'Image folder').replace(/attachment folder/g, 'image folder');
 };
 
 const isCanvasFileNode = (node: CanvasFileNode | CanvasTextNode | Record<string, unknown>): node is CanvasFileNode => {

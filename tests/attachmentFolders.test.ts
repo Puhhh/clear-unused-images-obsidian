@@ -170,6 +170,89 @@ describe('attachment folder planning', () => {
         expect(trashedPaths).toEqual(['exports/Test.html']);
     });
 
+    it('treats a matching folder with an image as one atomic image candidate', async () => {
+        const { app, trashedPaths } = buildVault([
+            { path: 'attachments/loose.jpg' },
+            { path: 'attachments/Project A/drawing.svg' },
+            { path: 'attachments/Project A/Note.md', content: 'Internal project note.' },
+            { path: 'attachments/Project A/Nested Folder/data.bin' },
+        ]);
+        const currentSettings = settings({ imageFolderRules: 'attachments' });
+        const plugin = { settings: currentSettings } as unknown as OzanClearImages;
+
+        const plan = await planAttachmentFolders(app, currentSettings, 'image');
+        const images = await getUnusedAttachments(app, 'image', plugin, plan.candidateFolderPaths);
+
+        expect(plan.deletableFolders.map((folder) => folder.path)).toEqual(['attachments/Project A']);
+        expect(images.unusedAttachments.map((file) => file.path)).toEqual(['attachments/loose.jpg']);
+
+        const result = await deleteReviewedAttachmentFolders(
+            app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths,
+            'image'
+        );
+
+        expect(result).toMatchObject({ deletedFolders: 1, failedFolders: 0, skippedFolders: 0 });
+        expect(trashedPaths).toEqual(['attachments/Project A']);
+    });
+
+    it('ignores matching folders that contain no image descendants in image mode', async () => {
+        const { app } = buildVault([
+            { path: 'attachments/Notes/Readme.md' },
+            { path: 'attachments/Notes/data.bin' },
+        ]);
+
+        const plan = await planAttachmentFolders(
+            app,
+            settings({ imageFolderRules: 'attachments' }),
+            'image'
+        );
+
+        expect(plan.deletableFolders).toEqual([]);
+        expect(plan.protectedFolders).toEqual([]);
+        expect(plan.candidateFolderPaths).toEqual(new Set<string>());
+    });
+
+    it('protects an image folder when an outside note references any descendant', async () => {
+        const { app } = buildVault([
+            { path: 'notes/note.md', content: '[[attachments/Project A/Readme.md]]' },
+            { path: 'attachments/Project A/drawing.svg' },
+            { path: 'attachments/Project A/Readme.md' },
+        ]);
+
+        const plan = await planAttachmentFolders(
+            app,
+            settings({ imageFolderRules: 'attachments' }),
+            'image'
+        );
+
+        expect(plan.deletableFolders).toEqual([]);
+        expect(plan.protectedFolders[0]).toMatchObject({ path: 'attachments/Project A' });
+        expect(plan.protectedFolders[0].protectedReason).toContain('Referenced from notes/note.md');
+    });
+
+    it('skips reviewed image-folder deletion when image rules change', async () => {
+        const vault = buildVault([{ path: 'attachments/Project A/drawing.svg' }]);
+        const currentSettings = settings({ imageFolderRules: 'attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings, 'image');
+        currentSettings.imageFolderRules = 'Other attachments';
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths,
+            'image'
+        );
+
+        expect(result).toMatchObject({ deletedFolders: 0, failedFolders: 0, skippedFolders: 1 });
+        expect(vault.trashedPaths).toEqual([]);
+    });
+
     it.each([
         ['wiki link', 'See [[exports/Test.html/assets/image.png]]', undefined],
         ['markdown link', '[asset](../exports/Test.html/assets/image.png)', undefined],

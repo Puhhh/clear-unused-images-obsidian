@@ -27,6 +27,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - Searchable plugin settings in Obsidian 1.13.0 and newer
 - Deletes files and folders through Obsidian-configured trash
 - Mandatory review before broader attachment cleanup, with optional cleanup logs
+- Separate reviewed folder rules for treating image-containing folders as atomic units during manual image cleanup
 - Configurable suffix, parent path, and regular expression rules for treating folder-based attachments as atomic cleanup units
 - Optional cleanup once after vault load
 - Optional recurring cleanup every configured number of minutes
@@ -61,7 +62,7 @@ Deleted files and folders follow Obsidian's own file deletion preference:
 
 The plugin provides three cleanup commands:
 
-- `Clear unused images` checks only image files. It is limited to jpg, jpeg, png, gif, svg, bmp, and webp.
+- `Clear unused images` checks only image files. It is limited to jpg, jpeg, png, gif, svg, bmp, and webp. When image folder rules are configured, a manual run also reviews matching image-containing folders as atomic units.
 - `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include PDFs, audio, video, archives, and other non-markdown files. When attachment folder rules are configured, it also reviews each selected folder and its descendants as one atomic attachment unit.
 - `Clear unused folders` removes empty folders recursively, starting with the deepest folders first. It follows Obsidian's file deletion preference and keeps folders under excluded folder paths.
 
@@ -80,6 +81,21 @@ If `Delete Logs` is enabled, the plugin shows a modal with information about del
 If all images are still used, the plugin reports that nothing was deleted:
 
 ![Nothing deleted](docs/assets/nothing-deleted.png)
+
+### Image Folders
+
+Use `Image folder rules` to treat selected folders and everything inside them as atomic image units during manual `Clear unused images`. The rule syntax is the same as `Attachment folder rules`: case-insensitive suffixes, case-sensitive parent paths, and anchored case-sensitive regular expressions.
+
+For example, the parent path rule `attachments` selects each immediate child folder under `attachments`, but not the parent itself or deeper folders separately. A matching folder is considered only when it contains at least one jpg, jpeg, png, gif, svg, bmp, or webp descendant.
+
+- Image folder rules apply only to manual `Clear unused images`. Vault-load and periodic cleanup never plan or delete matching folders.
+- A manual run with configured image folder rules always opens the review modal before deleting any unused image or selected folder.
+- The review shows every descendant that would move to trash, including Markdown files, non-image files, and nested folders. Protected folders appear with the reason they were kept.
+- Any reference from outside the selected folder to any descendant protects the whole folder. References between descendants inside the same folder do not protect it.
+- Excluded folder intersections, excluded file extensions, reference-scan failures, and invalid rules protect or stop cleanup using the same safeguards as attachment folder cleanup.
+- Immediately before deleting each reviewed folder, the plugin rescans and verifies its rules, references, exclusions, type, and complete descendant fingerprint. A changed folder is kept and must be reviewed again.
+- Descendants of a selected or protected atomic folder are not also deleted individually during that cleanup run.
+- If every reviewed child selected by a parent path or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was listed in the review. Cleanup never cascades to higher ancestors.
 
 ### Attachment Folders
 
@@ -108,6 +124,7 @@ Enable `Clean Images On Vault Load` to run image cleanup once after the vault la
 ![Clean images on vault load](docs/assets/clean-images-on-vault-load.png)
 
 - The startup cleanup only runs the image cleanup flow, not `Clear unused attachments`.
+- Startup cleanup ignores `Image folder rules`; it continues deleting only individual unused images.
 - If you enable the setting while Obsidian is already open, the change takes effect on the next vault load.
 
 Enable `Clean Images Every X Minutes` to run recurring image cleanup while Obsidian stays open:
@@ -115,6 +132,7 @@ Enable `Clean Images Every X Minutes` to run recurring image cleanup while Obsid
 ![Cleanup interval](docs/assets/cleanup-interval.png)
 
 - The first periodic cleanup waits the full configured interval.
+- Periodic cleanup ignores `Image folder rules`; it continues deleting only individual unused images.
 - If both automatic modes are enabled, the vault-load cleanup runs once and periodic cleanup starts later on its normal interval.
 - Changing the toggle or interval updates the scheduler for the current session.
 

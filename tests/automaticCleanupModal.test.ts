@@ -16,6 +16,7 @@ vi.mock('../src/util', async () => {
     return {
         ...actual,
         getUnusedAttachments: vi.fn(),
+        deleteFilesInTheList: vi.fn(),
     };
 });
 
@@ -37,15 +38,40 @@ const excludedFile = { path: 'protected.png' } as TFile;
 
 describe('automatic cleanup with fully excluded unused images', () => {
     beforeEach(() => {
-        promptMock.mockClear();
+        promptMock.mockReset();
+        promptMock.mockResolvedValue(true);
         (CleanupReviewModal as unknown as ReturnType<typeof vi.fn>).mockClear();
         (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockReset();
         (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
             unusedAttachments: [],
             excludedAttachments: [excludedFile],
         });
+        (Util.deleteFilesInTheList as ReturnType<typeof vi.fn>).mockReset();
+        (Util.deleteFilesInTheList as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletedImages: 0,
+            skippedImages: 0,
+            failedImages: 0,
+            deletedParentFolderPaths: [],
+            logLines: [],
+        });
         (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockReset();
         (AttachmentFolders.deleteReviewedAttachmentFolders as ReturnType<typeof vi.fn>).mockReset();
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [],
+            protectedFolders: [],
+            candidateFolderPaths: new Set<string>(),
+            normalizedRules: [],
+            parentFolderPaths: [],
+        });
+        (AttachmentFolders.deleteReviewedAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletedFolders: 0,
+            failedFolders: 0,
+            skippedFolders: 0,
+            deletedParentFolders: 0,
+            failedParentFolders: 0,
+            skippedParentFolders: 0,
+            logLines: [],
+        });
     });
 
     const createPlugin = (): OzanClearImages => {
@@ -86,14 +112,106 @@ describe('automatic cleanup with fully excluded unused images', () => {
         expect(promptMock).toHaveBeenCalledTimes(1);
     });
 
-    it('never plans attachment folders during image or non-interactive cleanup', async () => {
+    it('never plans atomic folders during automatic cleanup', async () => {
         const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
         plugin.settings.attachmentFolderSuffixes = '.html';
 
-        await plugin.clearUnusedAttachments('image');
-        await plugin.clearUnusedAttachments('all', { interactive: false });
+        await plugin.clearUnusedAttachments('image', { interactive: false, origin: 'automatic' });
+        await plugin.clearUnusedAttachments('all', { interactive: false, origin: 'automatic' });
 
         expect(AttachmentFolders.planAttachmentFolders).not.toHaveBeenCalled();
         expect(AttachmentFolders.deleteReviewedAttachmentFolders).not.toHaveBeenCalled();
+        expect(Util.getUnusedAttachments).toHaveBeenNthCalledWith(
+            1,
+            plugin.app,
+            'image',
+            plugin,
+            new Set<string>()
+        );
+    });
+
+    it('plans image folders only for a manual reviewed image cleanup', async () => {
+        const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(AttachmentFolders.planAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            'image'
+        );
+        expect(CleanupReviewModal).toHaveBeenCalledTimes(1);
+    });
+
+    it('deletes nothing when manual image-folder review is cancelled', async () => {
+        const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [{ path: 'loose.png' } as TFile],
+            excludedAttachments: [],
+        });
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [
+                {
+                    path: 'attachments/Project A',
+                    matchedRule: 'parent path attachments',
+                    descendantPaths: ['attachments/Project A/drawing.svg'],
+                    fingerprint: 'file:attachments/Project A/drawing.svg:1:1',
+                },
+            ],
+            protectedFolders: [],
+            candidateFolderPaths: new Set(['attachments/Project A']),
+            normalizedRules: ['parent-path:attachments'],
+            parentFolderPaths: ['attachments'],
+        });
+        promptMock.mockResolvedValue(false);
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(Util.deleteFilesInTheList).not.toHaveBeenCalled();
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).not.toHaveBeenCalled();
+    });
+
+    it('passes the accepted image-folder plan through classification and scoped revalidation', async () => {
+        const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
+        const candidateFolderPaths = new Set(['attachments/Project A']);
+        const reviewedFolder = {
+            path: 'attachments/Project A',
+            matchedRule: 'parent path attachments',
+            descendantPaths: ['attachments/Project A/drawing.svg'],
+            fingerprint: 'file:attachments/Project A/drawing.svg:1:1',
+            emptyParentPath: 'attachments',
+        };
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [reviewedFolder],
+            protectedFolders: [],
+            candidateFolderPaths,
+            normalizedRules: ['parent-path:attachments'],
+            parentFolderPaths: ['attachments'],
+        });
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [],
+            excludedAttachments: [],
+        });
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(Util.getUnusedAttachments).toHaveBeenCalledWith(
+            plugin.app,
+            'image',
+            plugin,
+            candidateFolderPaths
+        );
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            [reviewedFolder],
+            ['parent-path:attachments'],
+            ['attachments'],
+            'image'
+        );
     });
 });

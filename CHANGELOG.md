@@ -4,6 +4,14 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added separate `Image folder rules` for reviewing image-containing folders as atomic cleanup units during manual `Clear unused images`, while leaving individual image cleanup unchanged outside those folders.
+
+### Security
+
+- Kept image-folder deletion out of vault-load and periodic cleanup, required explicit review, ignored matching folders without image descendants, and reused external-reference, exclusion, fail-closed scan, fingerprint, and pre-delete revalidation safeguards.
+
 ## [1.8.0] - 2026-08-20
 
 ### Added

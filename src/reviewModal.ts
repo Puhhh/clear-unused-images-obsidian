@@ -2,6 +2,7 @@ import { App, Modal } from 'obsidian';
 import type { AttachmentFolderReviewItem } from './attachmentFolders';
 
 export interface CleanupReviewModalOptions {
+    cleanupType?: 'images' | 'attachments';
     filePaths: string[];
     folderItems: AttachmentFolderReviewItem[];
     emptyParentFolderPaths?: string[];
@@ -10,6 +11,7 @@ export interface CleanupReviewModalOptions {
 }
 
 export class CleanupReviewModal extends Modal {
+    private readonly cleanupType: 'images' | 'attachments';
     private readonly filePaths: string[];
     private readonly folderItems: AttachmentFolderReviewItem[];
     private readonly emptyParentFolderPaths: string[];
@@ -20,6 +22,7 @@ export class CleanupReviewModal extends Modal {
 
     constructor(app: App, options: CleanupReviewModalOptions) {
         super(app);
+        this.cleanupType = options.cleanupType ?? 'attachments';
         this.filePaths = options.filePaths;
         this.folderItems = options.folderItems;
         this.emptyParentFolderPaths = options.emptyParentFolderPaths ?? [];
@@ -43,7 +46,11 @@ export class CleanupReviewModal extends Modal {
         const headerWrapper = contentEl.createDiv();
         headerWrapper.addClass('unused-images-center-wrapper');
         headerWrapper
-            .createEl('h1', { text: hasDeletableItems ? 'Review unused attachments' : 'Protected attachments' })
+            .createEl('h1', {
+                text: hasDeletableItems
+                    ? `Review unused ${this.cleanupType}`
+                    : `Protected ${this.cleanupType}`,
+            })
             .addClass('modal-title');
 
         contentEl.createEl('p', {
@@ -90,7 +97,9 @@ export class CleanupReviewModal extends Modal {
             protectedFolderDetails.addClass('unused-images-excluded');
             protectedFolderDetails.open = !hasDeletableItems;
             protectedFolderDetails.createEl('summary', {
-                text: `${this.protectedFolderItems.length.toString()} attachment folder(s) are protected (click to review).`,
+                text: `${this.protectedFolderItems.length.toString()} ${
+                    this.cleanupType === 'images' ? 'image' : 'attachment'
+                } folder(s) are protected (click to review).`,
             });
             this.renderFolderList(protectedFolderDetails, this.protectedFolderItems, true);
         }
