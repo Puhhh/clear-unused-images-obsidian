@@ -4,9 +4,11 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-20
+
 ### Added
 
-- Extended `Attachment folder rules` with case-sensitive vault-relative parent paths and anchored regular expressions while preserving case-insensitive legacy suffix rules.
+- Renamed `Attachment folder suffixes` to `Attachment folder rules` and added case-sensitive vault-relative parent paths and anchored regular expressions while preserving existing case-insensitive suffix values.
 - Added reviewed cleanup of a selected attachment folder's direct parent when it becomes empty, without cascading to higher ancestors.
 
 ### Security

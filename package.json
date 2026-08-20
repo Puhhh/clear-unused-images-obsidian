@@ -1,6 +1,6 @@
 {
   "name": "clear-unused-images-plus",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Fork of oz-clear-unused-images for clearing unused images from vaults.",
   "main": "main.js",
   "scripts": {
