@@ -4,6 +4,18 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-20
+
+### Added
+
+- Renamed `Attachment folder suffixes` to `Attachment folder rules` and added case-sensitive vault-relative parent paths and anchored regular expressions while preserving existing case-insensitive suffix values.
+- Added reviewed cleanup of a selected attachment folder's direct parent when it becomes empty, without cascading to higher ancestors.
+
+### Security
+
+- Rejected invalid or potentially expensive attachment-folder regular expressions before cleanup and limited rule evaluation to a bounded, linear-matching subset.
+- Revalidated attachment folder rules, exclusions, exact parent type, and emptiness immediately before moving a reviewed parent folder to Obsidian-configured trash.
+
 ## [1.7.0] - 2026-08-19
 
 ### Added

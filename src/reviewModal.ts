@@ -4,6 +4,7 @@ import type { AttachmentFolderReviewItem } from './attachmentFolders';
 export interface CleanupReviewModalOptions {
     filePaths: string[];
     folderItems: AttachmentFolderReviewItem[];
+    emptyParentFolderPaths?: string[];
     excludedFilePaths?: string[];
     protectedFolderItems?: AttachmentFolderReviewItem[];
 }
@@ -11,6 +12,7 @@ export interface CleanupReviewModalOptions {
 export class CleanupReviewModal extends Modal {
     private readonly filePaths: string[];
     private readonly folderItems: AttachmentFolderReviewItem[];
+    private readonly emptyParentFolderPaths: string[];
     private readonly excludedFilePaths: string[];
     private readonly protectedFolderItems: AttachmentFolderReviewItem[];
     private resolveDecision: ((decision: boolean) => void) | undefined;
@@ -20,6 +22,7 @@ export class CleanupReviewModal extends Modal {
         super(app);
         this.filePaths = options.filePaths;
         this.folderItems = options.folderItems;
+        this.emptyParentFolderPaths = options.emptyParentFolderPaths ?? [];
         this.excludedFilePaths = options.excludedFilePaths ?? [];
         this.protectedFolderItems = options.protectedFolderItems ?? [];
     }
@@ -59,6 +62,16 @@ export class CleanupReviewModal extends Modal {
             this.renderFolderList(contentEl, this.folderItems, false);
         }
 
+        if (this.emptyParentFolderPaths.length > 0) {
+            contentEl.createEl('h2', {
+                text: `Parent folders to move if empty (${this.emptyParentFolderPaths.length.toString()})`,
+            });
+            contentEl.createEl('p', {
+                text: 'Each parent below will be rechecked after its reviewed child folders are deleted. It is moved to trash only if it is then empty; cleanup never continues to higher ancestors.',
+            });
+            this.renderFileList(contentEl, this.emptyParentFolderPaths);
+        }
+
         if (this.excludedFilePaths.length > 0) {
             const excludedDetails = contentEl.createEl('details');
             excludedDetails.addClass('unused-images-excluded');
@@ -93,7 +106,11 @@ export class CleanupReviewModal extends Modal {
             });
 
             const continueButton = buttonWrapper.createEl('button', {
-                text: `Move ${this.filePaths.length.toString()} file(s) and ${this.folderItems.length.toString()} folder(s) to trash`,
+                text: `Move ${this.filePaths.length.toString()} file(s) and ${this.folderItems.length.toString()} folder(s) to trash${
+                    this.emptyParentFolderPaths.length > 0
+                        ? `, plus up to ${this.emptyParentFolderPaths.length.toString()} empty parent folder(s)`
+                        : ''
+                }`,
             });
             continueButton.addClass('unused-images-button');
             continueButton.addClass('mod-warning');
@@ -127,7 +144,7 @@ export class CleanupReviewModal extends Modal {
         for (const folderItem of folderItems) {
             const details = listWrapper.createEl('details');
             details.createEl('summary', {
-                text: `${folderItem.path}/ — ${folderItem.descendantPaths.length.toString()} descendant item(s), suffix ${folderItem.matchedSuffix}`,
+                text: `${folderItem.path}/ — ${folderItem.descendantPaths.length.toString()} descendant item(s), ${folderItem.matchedRule}`,
             });
             if (showProtectedReason && folderItem.protectedReason) {
                 details.createEl('p', { text: folderItem.protectedReason });
