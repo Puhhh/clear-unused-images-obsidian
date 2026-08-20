@@ -27,7 +27,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - Searchable plugin settings in Obsidian 1.13.0 and newer
 - Deletes files and folders through Obsidian-configured trash
 - Mandatory review before broader attachment cleanup, with optional cleanup logs
-- Configurable literal suffixes for treating folder-based attachments as atomic cleanup units
+- Configurable suffix, parent path, and regular expression rules for treating folder-based attachments as atomic cleanup units
 - Optional cleanup once after vault load
 - Optional recurring cleanup every configured number of minutes
 - Optional empty-folder cleanup after deleted images leave folders empty
@@ -62,7 +62,7 @@ Deleted files and folders follow Obsidian's own file deletion preference:
 The plugin provides three cleanup commands:
 
 - `Clear unused images` checks only image files. It is limited to jpg, jpeg, png, gif, svg, bmp, and webp.
-- `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include PDFs, audio, video, archives, and other non-markdown files. When attachment folder suffixes are configured, it also reviews matching folders and all their descendants as atomic attachment units.
+- `Clear unused attachments` checks all non-note attachments in the vault, not just images. This can include PDFs, audio, video, archives, and other non-markdown files. When attachment folder rules are configured, it also reviews each selected folder and its descendants as one atomic attachment unit.
 - `Clear unused folders` removes empty folders recursively, starting with the deepest folders first. It follows Obsidian's file deletion preference and keeps folders under excluded folder paths.
 
 Use `Clear unused images` for routine image cleanup. Use `Clear unused attachments` more carefully because it has a wider scope: it can move any unreferenced non-note attachment, or every descendant of an approved matching attachment folder, to trash. The attachment cleanup flow always shows a review modal before deletion. Use `Clear unused folders` after file cleanup if you want to remove empty folder structure left behind, or enable `Clear empty folders after image cleanup` to do that automatically.
@@ -83,15 +83,23 @@ If all images are still used, the plugin reports that nothing was deleted:
 
 ### Attachment Folders
 
-Use `Attachment folder suffixes` to treat folders whose names end with configured values as single attachments during manual `Clear unused attachments`. Enter comma-separated literal suffixes beginning with a dot, such as `.html, .excalidraw`. Matching is case insensitive; configured values are not regular expressions or wildcard patterns.
+Use `Attachment folder rules` to treat a selected folder and everything inside it as one atomic attachment during manual `Clear unused attachments`. Separate rules with commas or put one rule on each line.
+
+| Rule | Behavior |
+| --- | --- |
+| `.html` | Legacy suffix rule. Selects folders whose names end with `.html`. Suffix matching is case insensitive. |
+| `Attachments` | Parent path rule. Selects the immediate child folders of the vault-relative `Attachments` path. Matching is case sensitive. It does not select `Attachments` itself or deeper descendants. |
+| `/^Attachments\/[^/]+$/` | Regular expression rule. Tests the expression, case sensitively, against each folder's full vault-relative path. This example selects only immediate children of `Attachments`. |
 
 - This setting applies only to manual `Clear unused attachments`. It does not affect `Clear unused images`, vault-load cleanup, periodic cleanup, or `Clear unused folders`.
-- The review modal shows each outermost matching folder and its descendants as one folder item. Continuing moves the whole folder, including any Markdown files inside it, to Obsidian-configured trash.
-- A folder is protected if a reference from outside the folder points to any descendant, if it intersects a configured excluded folder path, or if it contains a file with an excluded extension. References between descendants inside the same folder do not protect it.
+- The review modal shows each outermost selected folder and its descendants as one folder item, together with the rule that selected it. Continuing moves the whole folder, including any Markdown files inside it, to Obsidian-configured trash.
+- A selected folder is protected if a reference from outside the folder points to any descendant, if it intersects a configured excluded folder path, or if it contains a file with an excluded extension. References between descendants inside the same folder do not protect it.
 - If the reference scan cannot finish, the plugin keeps the folder.
-- Before deleting each reviewed folder, the plugin rescans references and exclusions and verifies that the suffix settings and reviewed descendants have not changed. If the folder changed or became protected, cleanup skips it and asks you to run the command again.
+- An invalid rule stops attachment cleanup before anything is moved to trash. Regular expressions must be anchored with `^` and `$`. For predictable linear matching, the supported subset allows literals, escapes, character classes, and at most one `+`, `*`, or `?` quantified character class per path segment. Groups, alternation, wildcards, lookarounds, flags, backreferences, and bounded quantifiers are rejected.
+- Before deleting each reviewed folder, the plugin rescans references and exclusions and verifies that the rules and reviewed descendants have not changed. If the folder changed or became protected, cleanup skips it and asks you to run the command again.
+- After folders selected by a parent path or regular expression are deleted, their reviewed direct parent may also be removed if it became empty. The parent is rechecked immediately before deletion and is kept if any file or folder remains, if an exclusion applies, or if a reviewed child was skipped or failed. Empty-parent cleanup never continues to higher ancestors. Legacy suffix rules do not remove their parent folders automatically.
 
-You can configure up to 50 suffixes, with a maximum of 64 characters each. Values containing path separators or `..` are rejected, and an invalid setting stops the manual attachment cleanup before anything is moved to trash.
+You can configure up to 50 rules, with a maximum of 256 characters each. Legacy suffixes remain limited to 64 characters. Parent paths must be vault relative and cannot contain empty, `.` or `..` segments or backslashes.
 
 ### Automatic Cleanup
 

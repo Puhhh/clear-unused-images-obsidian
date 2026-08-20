@@ -4,7 +4,6 @@ import type { App } from 'obsidian';
 
 import {
     deleteReviewedAttachmentFolders,
-    parseAttachmentFolderSuffixes,
     planAttachmentFolders,
 } from '../src/attachmentFolders';
 import { DEFAULT_SETTINGS, OzanClearImagesSettings } from '../src/settings';
@@ -108,6 +107,24 @@ const buildVault = (specs: VaultFileSpec[]): FakeVault => {
         fileManager: {
             trashFile: (abstractFile: TAbstractFile) => {
                 trashedPaths.push(abstractFile.path);
+                const parent = abstractFile.parent;
+                if (parent) {
+                    parent.children = parent.children.filter((child) => child !== abstractFile);
+                }
+
+                const remove = (item: TAbstractFile): void => {
+                    if (item instanceof TFolder) {
+                        for (const child of [...item.children]) {
+                            remove(child);
+                        }
+                        folders.delete(item.path);
+                    } else if (item instanceof TFile) {
+                        files.delete(item.path);
+                        contents.delete(item.path);
+                        frontmatter.delete(item.path);
+                    }
+                };
+                remove(abstractFile);
                 return Promise.resolve();
             },
         },
@@ -120,17 +137,6 @@ const settings = (override: Partial<OzanClearImagesSettings> = {}): OzanClearIma
     ...DEFAULT_SETTINGS,
     attachmentFolderSuffixes: '.html',
     ...override,
-});
-
-describe('attachment folder suffix parsing', () => {
-    it('normalizes case, removes duplicates, and rejects unsafe entries', () => {
-        expect(parseAttachmentFolderSuffixes('.HTML, .html, .excalidraw')).toEqual({
-            suffixes: ['.excalidraw', '.html'],
-        });
-        expect(parseAttachmentFolderSuffixes('html').suffixes).toEqual([]);
-        expect(parseAttachmentFolderSuffixes('../html').suffixes).toEqual([]);
-        expect(parseAttachmentFolderSuffixes('.').suffixes).toEqual([]);
-    });
 });
 
 describe('attachment folder planning', () => {
@@ -157,7 +163,8 @@ describe('attachment folder planning', () => {
             app,
             plugin.settings,
             plan.deletableFolders,
-            plan.normalizedSuffixes
+            plan.normalizedRules,
+            plan.parentFolderPaths
         );
         expect(result).toMatchObject({ deletedFolders: 1, failedFolders: 0, skippedFolders: 0 });
         expect(trashedPaths).toEqual(['exports/Test.html']);
@@ -271,10 +278,264 @@ describe('attachment folder planning', () => {
             vault.app,
             currentSettings,
             plan.deletableFolders,
-            plan.normalizedSuffixes
+            plan.normalizedRules,
+            plan.parentFolderPaths
         );
 
         expect(result).toMatchObject({ deletedFolders: 0, failedFolders: 0, skippedFolders: 1 });
         expect(vault.trashedPaths).toEqual([]);
+    });
+
+    it('selects immediate child folders of a case-sensitive parent path', async () => {
+        const { app } = buildVault([
+            { path: 'Attachments/direct-file.txt' },
+            { path: 'Attachments/Project A/assets/image.png' },
+            { path: 'Attachments/Project B/index.html' },
+            { path: 'attachments/Project C/index.html' },
+        ]);
+
+        const plan = await planAttachmentFolders(app, settings({ attachmentFolderSuffixes: 'Attachments' }));
+
+        expect(plan.deletableFolders.map((folder) => folder.path)).toEqual([
+            'Attachments/Project A',
+            'Attachments/Project B',
+        ]);
+        expect(plan.deletableFolders.map((folder) => folder.matchedRule)).toEqual([
+            'parent path Attachments',
+            'parent path Attachments',
+        ]);
+        expect(plan.parentFolderPaths).toEqual(['Attachments']);
+    });
+
+    it('matches safe regular expressions against full case-sensitive folder paths', async () => {
+        const { app } = buildVault([
+            { path: 'Attachments/Project A/assets/image.png' },
+            { path: 'Attachments/Project B/index.html' },
+            { path: 'attachments/Project C/index.html' },
+        ]);
+
+        const plan = await planAttachmentFolders(
+            app,
+            settings({ attachmentFolderSuffixes: '/^Attachments\\/[^/]+$/' })
+        );
+
+        expect(plan.validationError).toBeUndefined();
+        expect(plan.deletableFolders.map((folder) => folder.path)).toEqual([
+            'Attachments/Project A',
+            'Attachments/Project B',
+        ]);
+        expect(plan.parentFolderPaths).toEqual(['Attachments']);
+    });
+
+    it('removes a reviewed direct parent only after all selected children leave it empty', async () => {
+        const vault = buildVault([
+            { path: 'Attachments/Project A/index.html' },
+            { path: 'Attachments/Project B/index.html' },
+        ]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result).toMatchObject({
+            deletedFolders: 2,
+            failedFolders: 0,
+            skippedFolders: 0,
+            deletedParentFolders: 1,
+            failedParentFolders: 0,
+            skippedParentFolders: 0,
+        });
+        expect(vault.trashedPaths).toEqual([
+            'Attachments/Project A',
+            'Attachments/Project B',
+            'Attachments',
+        ]);
+    });
+
+    it('keeps the direct parent when any item remains', async () => {
+        const vault = buildVault([
+            { path: 'Attachments/keep.txt' },
+            { path: 'Attachments/Project A/index.html' },
+        ]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result.deletedFolders).toBe(1);
+        expect(result.deletedParentFolders).toBe(0);
+        expect(vault.trashedPaths).toEqual(['Attachments/Project A']);
+        expect(result.logLines).toContain('[=] Kept attachment parent folder Attachments: it is not empty.');
+    });
+
+    it('keeps the direct parent when content arrives after a reviewed child is deleted', async () => {
+        const vault = buildVault([{ path: 'Attachments/Project A/index.html' }]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+        const trashFile = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+        vault.app.fileManager.trashFile = async (abstractFile: TAbstractFile): Promise<void> => {
+            await trashFile(abstractFile);
+            if (abstractFile.path === 'Attachments/Project A') {
+                vault.addFile({ path: 'Attachments/arrived-during-cleanup.txt' });
+            }
+        };
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result.deletedFolders).toBe(1);
+        expect(result.deletedParentFolders).toBe(0);
+        expect(vault.trashedPaths).toEqual(['Attachments/Project A']);
+    });
+
+    it('keeps the direct parent when rules change after a reviewed child is deleted', async () => {
+        const vault = buildVault([{ path: 'Attachments/Project A/index.html' }]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+        const trashFile = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+        vault.app.fileManager.trashFile = async (abstractFile: TAbstractFile): Promise<void> => {
+            await trashFile(abstractFile);
+            currentSettings.attachmentFolderSuffixes = 'Other attachments';
+        };
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result.deletedFolders).toBe(1);
+        expect(result.deletedParentFolders).toBe(0);
+        expect(result.skippedParentFolders).toBe(1);
+        expect(vault.trashedPaths).toEqual(['Attachments/Project A']);
+    });
+
+    it('keeps the direct parent when a reviewed child deletion fails', async () => {
+        const vault = buildVault([
+            { path: 'Attachments/Project A/index.html' },
+            { path: 'Attachments/Project B/index.html' },
+        ]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+        const trashFile = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+        vault.app.fileManager.trashFile = async (abstractFile: TAbstractFile): Promise<void> => {
+            if (abstractFile.path === 'Attachments/Project B') {
+                throw new Error('Simulated child deletion failure');
+            }
+            await trashFile(abstractFile);
+        };
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result).toMatchObject({
+            deletedFolders: 1,
+            failedFolders: 1,
+            deletedParentFolders: 0,
+            skippedParentFolders: 1,
+        });
+        expect(vault.trashedPaths).toEqual(['Attachments/Project A']);
+    });
+
+    it('keeps an empty direct parent when it becomes excluded before parent deletion', async () => {
+        const vault = buildVault([{ path: 'Attachments/Project A/index.html' }]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+        const trashFile = vault.app.fileManager.trashFile.bind(vault.app.fileManager);
+        vault.app.fileManager.trashFile = async (abstractFile: TAbstractFile): Promise<void> => {
+            await trashFile(abstractFile);
+            currentSettings.excludedFolders = 'Attachments';
+        };
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result.deletedFolders).toBe(1);
+        expect(result.deletedParentFolders).toBe(0);
+        expect(result.skippedParentFolders).toBe(1);
+        expect(vault.trashedPaths).toEqual(['Attachments/Project A']);
+    });
+
+    it('never cascades empty parent cleanup to higher ancestors', async () => {
+        const vault = buildVault([{ path: 'Archive/Attachments/Project A/index.html' }]);
+        const currentSettings = settings({ attachmentFolderSuffixes: 'Archive/Attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result.deletedParentFolders).toBe(1);
+        expect(vault.trashedPaths).toEqual(['Archive/Attachments/Project A', 'Archive/Attachments']);
+        expect(vault.trashedPaths).not.toContain('Archive');
+    });
+
+    it('never treats the vault root as an empty parent cleanup candidate', async () => {
+        const vault = buildVault([{ path: 'Project/index.html' }]);
+        const currentSettings = settings({ attachmentFolderSuffixes: '/^Project$/' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+
+        expect(plan.deletableFolders[0].emptyParentPath).toBeUndefined();
+        expect(plan.parentFolderPaths).toEqual([]);
+
+        await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(vault.trashedPaths).toEqual(['Project']);
+    });
+
+    it('does not remove parents for legacy suffix rules', async () => {
+        const vault = buildVault([{ path: 'exports/Test.html/index.html' }]);
+        const currentSettings = settings();
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result.deletedParentFolders).toBe(0);
+        expect(vault.trashedPaths).toEqual(['exports/Test.html']);
     });
 });

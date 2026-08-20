@@ -120,13 +120,13 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                         },
                     },
                     {
-                        name: 'Attachment folder suffixes',
-                        desc: 'Treat folders ending with these literal suffixes as atomic attachments during manual clear unused attachments. Use comma-separated values beginning with a dot, such as .HTML, .Excalidraw. A folder is kept if any outside note or canvas references a descendant, or if it intersects an exclusion.',
-                        aliases: ['folder attachments', 'atomic folders', 'folder suffixes'],
+                        name: 'Attachment folder rules',
+                        desc: 'Select atomic attachment folders during manual clear unused attachments. Use a legacy suffix such as .HTML, a case-sensitive parent path such as attachments to select its immediate child folders, or an anchored case-sensitive regular expression such as /^attachments\\/[^/]+$/.',
+                        aliases: ['folder attachments', 'atomic folders', 'folder suffixes', 'folder paths', 'regex'],
                         control: {
                             type: 'textarea',
                             key: 'attachmentFolderSuffixes',
-                            placeholder: 'Suffixes, e.g. .HTML, .Excalidraw',
+                            placeholder: 'Rules, e.g. .HTML, attachments, /^exports\\/[^/]+$/',
                         },
                     },
                     {
@@ -286,13 +286,13 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName('Attachment folder suffixes')
+            .setName('Attachment folder rules')
             .setDesc(
-                'Treat folders ending with these literal suffixes as atomic attachments during manual clear unused attachments. Enter comma-separated values beginning with a dot, such as .HTML, .Excalidraw. The review dialog always shows folders before they are moved to trash.'
+                'Select atomic attachment folders during manual clear unused attachments. Enter comma-separated or one-per-line rules: a legacy suffix such as .HTML, a case-sensitive parent path such as attachments to select its immediate child folders, or an anchored case-sensitive regular expression such as /^attachments\\/[^/]+$/. The review dialog always shows folders and any parent that may be removed if empty.'
             )
             .addTextArea((text) =>
                 text
-                    .setPlaceholder('Suffixes, e.g. .HTML, .Excalidraw')
+                    .setPlaceholder('Rules, e.g. .HTML, attachments, /^exports\\/[^/]+$/')
                     .setValue(this.plugin.settings.attachmentFolderSuffixes)
                     .onChange((value) => {
                         this.plugin.settings.attachmentFolderSuffixes = value;
