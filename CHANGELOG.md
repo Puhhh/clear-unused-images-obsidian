@@ -4,6 +4,8 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-20
+
 ### Added
 
 - Added separate `Image folder rules` for reviewing image-containing folders as atomic cleanup units during manual `Clear unused images`, while leaving individual image cleanup unchanged outside those folders.
