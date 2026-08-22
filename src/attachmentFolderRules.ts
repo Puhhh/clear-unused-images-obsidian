@@ -16,6 +16,12 @@ export type AttachmentFolderRule =
           label: string;
       }
     | {
+          kind: 'recursive-parent-path';
+          value: string;
+          canonical: string;
+          label: string;
+      }
+    | {
           kind: 'regex';
           value: string;
           expression: RegExp;
@@ -70,6 +76,10 @@ export const matchAttachmentFolderRule = (
             return rule;
         }
 
+        if (rule.kind === 'recursive-parent-path' && parentPathEndsWithSegment(parentPath, rule.value)) {
+            return rule;
+        }
+
         if (rule.kind === 'regex' && folderPath.length <= 1024) {
             rule.expression.lastIndex = 0;
             if (rule.expression.test(folderPath)) {
@@ -94,7 +104,46 @@ const parseRule = (rawEntry: string): AttachmentFolderRule | string => {
         return parseSuffixRule(rawEntry);
     }
 
+    if (rawEntry === '**' || rawEntry.startsWith('**/')) {
+        return parseRecursiveParentPathRule(rawEntry);
+    }
+
     return parseParentPathRule(rawEntry);
+};
+
+const parseRecursiveParentPathRule = (rawEntry: string): AttachmentFolderRule | string => {
+    const folderName = rawEntry.slice(3);
+    if (
+        folderName === '' ||
+        folderName === '.' ||
+        folderName === '..' ||
+        folderName.includes('/') ||
+        folderName.includes('\\') ||
+        hasGlobCharacter(folderName)
+    ) {
+        return `Invalid recursive parent folder rule: ${rawEntry}. Use **/ followed by one literal folder name.`;
+    }
+
+    return {
+        kind: 'recursive-parent-path',
+        value: folderName,
+        canonical: `recursive-parent-path:${folderName}`,
+        label: `recursive parent path ${rawEntry}`,
+    };
+};
+
+const parentPathEndsWithSegment = (parentPath: string, segment: string): boolean => {
+    const boundaryIndex = parentPath.length - segment.length - 1;
+    return (
+        parentPath === segment ||
+        (boundaryIndex >= 0 &&
+            parentPath.charCodeAt(boundaryIndex) === '/'.charCodeAt(0) &&
+            parentPath.endsWith(segment))
+    );
+};
+
+const hasGlobCharacter = (value: string): boolean => {
+    return /[*?[\]{}]/.test(value);
 };
 
 const parseSuffixRule = (rawEntry: string): AttachmentFolderRule | string => {

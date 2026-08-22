@@ -199,6 +199,55 @@ describe('attachment folder planning', () => {
         expect(trashedPaths).toEqual(['attachments/Project A']);
     });
 
+    it('selects recursive image-folder children at every depth without selecting deeper descendants', async () => {
+        const { app, trashedPaths } = buildVault([
+            { path: 'attachments/Project A/drawing.svg' },
+            { path: 'attachments/Project A/Nested Folder/data.bin' },
+            { path: 'Projects/attachments/Project B/photo.png' },
+            { path: 'Projects/attachments/Project B/Readme.md', content: 'Internal note.' },
+            { path: 'Work/2024/attachments/Project C/Readme.md', content: 'No image here.' },
+            { path: 'attachments2/Project D/image.png' },
+        ]);
+        const currentSettings = settings({ imageFolderRules: '**/attachments' });
+
+        const plan = await planAttachmentFolders(app, currentSettings, 'image');
+
+        expect(plan.deletableFolders.map((folder) => folder.path)).toEqual([
+            'attachments/Project A',
+            'Projects/attachments/Project B',
+        ]);
+        expect(plan.deletableFolders[0].descendantPaths).toEqual([
+            'attachments/Project A/Nested Folder',
+            'attachments/Project A/Nested Folder/data.bin',
+            'attachments/Project A/drawing.svg',
+        ]);
+        expect(plan.candidateFolderPaths).toEqual(new Set(['attachments/Project A', 'Projects/attachments/Project B']));
+        expect(plan.parentFolderPaths).toEqual(['Projects/attachments', 'attachments']);
+
+        const result = await deleteReviewedAttachmentFolders(
+            app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths,
+            'image'
+        );
+
+        expect(result).toMatchObject({
+            deletedFolders: 2,
+            deletedParentFolders: 2,
+            failedFolders: 0,
+            skippedFolders: 0,
+        });
+        expect(trashedPaths).toHaveLength(4);
+        expect(trashedPaths.indexOf('attachments/Project A')).toBeLessThan(trashedPaths.indexOf('attachments'));
+        expect(trashedPaths.indexOf('Projects/attachments/Project B')).toBeLessThan(
+            trashedPaths.indexOf('Projects/attachments')
+        );
+        expect(trashedPaths).not.toContain('Projects');
+        expect(trashedPaths).not.toContain('Work');
+    });
+
     it('ignores matching folders that contain no image descendants in image mode', async () => {
         const { app } = buildVault([
             { path: 'attachments/Notes/Readme.md' },
@@ -214,6 +263,24 @@ describe('attachment folder planning', () => {
         expect(plan.deletableFolders).toEqual([]);
         expect(plan.protectedFolders).toEqual([]);
         expect(plan.candidateFolderPaths).toEqual(new Set<string>());
+    });
+
+    it('fails recursive image-folder cleanup closed when the rule is ambiguous', async () => {
+        const { app, trashedPaths } = buildVault([
+            { path: 'Projects/attachments/Project A/drawing.svg' },
+        ]);
+
+        const plan = await planAttachmentFolders(
+            app,
+            settings({ imageFolderRules: '**/Projects/attachments' }),
+            'image'
+        );
+
+        expect(plan.validationError).toContain('Invalid recursive parent folder rule');
+        expect(plan.deletableFolders).toEqual([]);
+        expect(plan.protectedFolders).toEqual([]);
+        expect(plan.candidateFolderPaths).toEqual(new Set<string>());
+        expect(trashedPaths).toEqual([]);
     });
 
     it('protects an image folder when an outside note references any descendant', async () => {

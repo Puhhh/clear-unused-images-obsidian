@@ -123,22 +123,22 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                     },
                     {
                         name: 'Image folder rules',
-                        desc: 'Select atomic folders during manual clear unused images. Matching folders must contain an image and are always shown for review before the whole folder is moved to trash. Automatic image cleanup never uses these rules.',
-                        aliases: ['folder images', 'atomic image folders', 'image folder paths', 'image regex'],
+                        desc: 'Select atomic folders during manual clear unused images. Use a case-sensitive parent path such as attachments, a recursive parent such as **/attachments, or an anchored safe regular expression. Matching folders must contain an image and are always reviewed before deletion. Automatic image cleanup never uses these rules.',
+                        aliases: ['folder images', 'atomic image folders', 'image folder paths', 'image regex', 'recursive folders'],
                         control: {
                             type: 'textarea',
                             key: 'imageFolderRules',
-                            placeholder: 'Rules, e.g. Attachments, /^attachments\\/[^/]+$/',
+                            placeholder: 'Rules, e.g. attachments, **/attachments, /^attachments\\/[^/]+$/',
                         },
                     },
                     {
                         name: 'Attachment folder rules',
-                        desc: 'Select atomic attachment folders during manual clear unused attachments. Use a legacy suffix such as .HTML, a case-sensitive parent path such as attachments to select its immediate child folders, or an anchored case-sensitive regular expression such as /^attachments\\/[^/]+$/.',
-                        aliases: ['folder attachments', 'atomic folders', 'folder suffixes', 'folder paths', 'regex'],
+                        desc: 'Select atomic attachment folders during manual clear unused attachments. Use a legacy suffix such as .HTML, a case-sensitive parent path such as attachments, a recursive parent such as **/attachments, or an anchored safe regular expression.',
+                        aliases: ['folder attachments', 'atomic folders', 'folder suffixes', 'folder paths', 'regex', 'recursive folders'],
                         control: {
                             type: 'textarea',
                             key: 'attachmentFolderSuffixes',
-                            placeholder: 'Rules, e.g. .HTML, attachments, /^exports\\/[^/]+$/',
+                            placeholder: 'Rules, e.g. .HTML, attachments, **/attachments, /^exports\\/[^/]+$/',
                         },
                     },
                     {
@@ -301,11 +301,11 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Image folder rules')
             .setDesc(
-                'Select atomic folders during manual clear unused images. Enter comma-separated or one-per-line rules: a legacy suffix, a case-sensitive parent path, or an anchored case-sensitive regular expression. A matching folder must contain an image. The review dialog shows the whole folder and all descendants before deletion. Automatic image cleanup never uses these rules.'
+                'Select atomic folders during manual clear unused images. Enter comma-separated or one-per-line rules: a legacy suffix, a case-sensitive parent path, a recursive parent such as **/attachments, or an anchored case-sensitive regular expression. A matching folder must contain an image. The review dialog shows the whole folder and all descendants before deletion. Automatic image cleanup never uses these rules.'
             )
             .addTextArea((text) =>
                 text
-                    .setPlaceholder('Rules, e.g. Attachments, /^attachments\\/[^/]+$/')
+                    .setPlaceholder('Rules, e.g. Attachments, **/attachments, /^attachments\\/[^/]+$/')
                     .setValue(this.plugin.settings.imageFolderRules)
                     .onChange((value) => {
                         this.plugin.settings.imageFolderRules = value;
@@ -316,11 +316,11 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Attachment folder rules')
             .setDesc(
-                'Select atomic attachment folders during manual clear unused attachments. Enter comma-separated or one-per-line rules: a legacy suffix such as .HTML, a case-sensitive parent path such as attachments to select its immediate child folders, or an anchored case-sensitive regular expression such as /^attachments\\/[^/]+$/. The review dialog always shows folders and any parent that may be removed if empty.'
+                'Select atomic attachment folders during manual clear unused attachments. Enter comma-separated or one-per-line rules: a legacy suffix such as .HTML, a case-sensitive parent path such as attachments, a recursive parent such as **/attachments, or an anchored case-sensitive regular expression. The review dialog always shows folders and any parent that may be removed if empty.'
             )
             .addTextArea((text) =>
                 text
-                    .setPlaceholder('Rules, e.g. .HTML, attachments, /^exports\\/[^/]+$/')
+                    .setPlaceholder('Rules, e.g. .HTML, attachments, **/attachments, /^exports\\/[^/]+$/')
                     .setValue(this.plugin.settings.attachmentFolderSuffixes)
                     .onChange((value) => {
                         this.plugin.settings.attachmentFolderSuffixes = value;

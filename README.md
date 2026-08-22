@@ -84,7 +84,7 @@ If all images are still used, the plugin reports that nothing was deleted:
 
 ### Image Folders
 
-Use `Image folder rules` to treat selected folders and everything inside them as atomic image units during manual `Clear unused images`. The rule syntax is the same as `Attachment folder rules`: case-insensitive suffixes, case-sensitive parent paths, and anchored case-sensitive regular expressions.
+Use `Image folder rules` to treat selected folders and everything inside them as atomic image units during manual `Clear unused images`. The rule syntax is the same as `Attachment folder rules`: case-insensitive suffixes, case-sensitive parent paths, exact-name recursive parents, and anchored case-sensitive regular expressions.
 
 For example, the parent path rule `attachments` selects each immediate child folder under `attachments`, but not the parent itself or deeper folders separately. A matching folder is considered only when it contains at least one jpg, jpeg, png, gif, svg, bmp, or webp descendant.
 
@@ -95,7 +95,7 @@ For example, the parent path rule `attachments` selects each immediate child fol
 - Excluded folder intersections, excluded file extensions, reference-scan failures, and invalid rules protect or stop cleanup using the same safeguards as attachment folder cleanup.
 - Immediately before deleting each reviewed folder, the plugin rescans and verifies its rules, references, exclusions, type, and complete descendant fingerprint. A changed folder is kept and must be reviewed again.
 - Descendants of a selected or protected atomic folder are not also deleted individually during that cleanup run.
-- If every reviewed child selected by a parent path or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was listed in the review. Cleanup never cascades to higher ancestors.
+- If every reviewed child selected by a parent path, recursive parent rule, or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was listed in the review. Cleanup never cascades to higher ancestors.
 
 ### Attachment Folders
 
@@ -105,6 +105,7 @@ Use `Attachment folder rules` to treat a selected folder and everything inside i
 | --- | --- |
 | `.html` | Legacy suffix rule. Selects folders whose names end with `.html`. Suffix matching is case insensitive. |
 | `Attachments` | Parent path rule. Selects the immediate child folders of the vault-relative `Attachments` path. Matching is case sensitive. It does not select `Attachments` itself or deeper descendants. |
+| `**/attachments` | Recursive parent rule. Selects the immediate child folders under every folder whose exact path segment is `attachments`, whether it is at the vault root or nested. Matching is case sensitive and does not match `Attachments`, `attachments-old`, or `my attachments`. |
 | `/^Attachments\/[^/]+$/` | Regular expression rule. Tests the expression, case sensitively, against each folder's full vault-relative path. This example selects only immediate children of `Attachments`. |
 
 - This setting applies only to manual `Clear unused attachments`. It does not affect `Clear unused images`, vault-load cleanup, periodic cleanup, or `Clear unused folders`.
@@ -113,9 +114,11 @@ Use `Attachment folder rules` to treat a selected folder and everything inside i
 - If the reference scan cannot finish, the plugin keeps the folder.
 - An invalid rule stops attachment cleanup before anything is moved to trash. Regular expressions must be anchored with `^` and `$`. For predictable linear matching, the supported subset allows literals, escapes, character classes, and at most one `+`, `*`, or `?` quantified character class per path segment. Groups, alternation, wildcards, lookarounds, flags, backreferences, and bounded quantifiers are rejected.
 - Before deleting each reviewed folder, the plugin rescans references and exclusions and verifies that the rules and reviewed descendants have not changed. If the folder changed or became protected, cleanup skips it and asks you to run the command again.
-- After folders selected by a parent path or regular expression are deleted, their reviewed direct parent may also be removed if it became empty. The parent is rechecked immediately before deletion and is kept if any file or folder remains, if an exclusion applies, or if a reviewed child was skipped or failed. Empty-parent cleanup never continues to higher ancestors. Legacy suffix rules do not remove their parent folders automatically.
+- After folders selected by a parent path, recursive parent rule, or regular expression are deleted, their reviewed direct parent may also be removed if it became empty. The parent is rechecked immediately before deletion and is kept if any file or folder remains, if an exclusion applies, or if a reviewed child was skipped or failed. Empty-parent cleanup never continues to higher ancestors. Legacy suffix rules do not remove their parent folders automatically.
 
-You can configure up to 50 rules, with a maximum of 256 characters each. Legacy suffixes remain limited to 64 characters. Parent paths must be vault relative and cannot contain empty, `.` or `..` segments or backslashes.
+You can configure up to 50 rules, with a maximum of 256 characters each. Legacy suffixes remain limited to 64 characters. Parent paths must be vault relative and cannot contain empty, `.` or `..` segments or backslashes. A recursive parent rule must be `**/` followed by exactly one literal folder name.
+
+Recursive parent rules were introduced after 1.9.0. In 1.9.0 and earlier, `**/attachments` was treated as a literal parent path; the recursive interpretation now selects that literal location plus immediate children under every other exact `attachments` folder segment. Legacy standalone `**`, multi-segment `**/...` values, and wildcard-like names are now rejected fail-closed instead of being treated as literal paths. Every newly selected folder still goes through the normal review and deletion safeguards.
 
 ### Automatic Cleanup
 
