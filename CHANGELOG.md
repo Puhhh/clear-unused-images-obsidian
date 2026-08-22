@@ -4,6 +4,18 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added recursive parent folder rules such as `**/attachments` to image and attachment cleanup, selecting immediate child folders under every exact matching folder segment at any vault depth.
+
+### Security
+
+- Implemented recursive parent matching as a dedicated literal segment rule with bounded traversal, while retaining review, reference, exclusion, fingerprint, and pre-delete revalidation safeguards.
+
+### Changed
+
+- Reinterpreted a former one-segment literal `**/<folder>` parent path as a recursive parent rule; its former literal location remains selected, additional exact-name locations require review, and broader wildcard-like legacy values are rejected fail-closed.
+
 ## [1.9.0] - 2026-08-20
 
 ### Added

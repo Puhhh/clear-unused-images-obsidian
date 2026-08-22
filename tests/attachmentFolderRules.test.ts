@@ -28,6 +28,74 @@ describe('attachment folder rules', () => {
         expect(matchAttachmentFolderRule('Exports/Project', 'Project', 'Exports', parsed.rules)?.kind).toBe('regex');
     });
 
+    it('parses recursive parent paths and removes duplicates', () => {
+        const parsed = parseAttachmentFolderRules('**/attachments\n**/attachments');
+
+        expect(parsed.error).toBeUndefined();
+        expect(parsed.canonicalRules).toEqual(['recursive-parent-path:attachments']);
+        expect(parsed.rules).toHaveLength(1);
+        expect(parsed.rules[0]).toMatchObject({
+            kind: 'recursive-parent-path',
+            value: 'attachments',
+            label: 'recursive parent path **/attachments',
+        });
+    });
+
+    it('matches a recursive parent folder at the vault root or any nesting depth', () => {
+        const parsed = parseAttachmentFolderRules('**/attachments');
+
+        expect(
+            matchAttachmentFolderRule('attachments/Project', 'Project', 'attachments', parsed.rules)?.kind
+        ).toBe('recursive-parent-path');
+        expect(
+            matchAttachmentFolderRule(
+                'Projects/attachments/Project A',
+                'Project A',
+                'Projects/attachments',
+                parsed.rules
+            )?.kind
+        ).toBe('recursive-parent-path');
+        expect(
+            matchAttachmentFolderRule(
+                'Work/2024/attachments/Project',
+                'Project',
+                'Work/2024/attachments',
+                parsed.rules
+            )?.kind
+        ).toBe('recursive-parent-path');
+        expect(
+            matchAttachmentFolderRule('**/attachments/Project', 'Project', '**/attachments', parsed.rules)?.kind
+        ).toBe('recursive-parent-path');
+    });
+
+    it.each([
+        ['Attachments/Project', 'Project', 'Attachments'],
+        ['attachments-old/Project', 'Project', 'attachments-old'],
+        ['my attachments/Project', 'Project', 'my attachments'],
+        ['notes/attachments', 'attachments', 'notes'],
+    ])('does not match a non-exact recursive parent segment: %s', (folderPath, folderName, parentPath) => {
+        const parsed = parseAttachmentFolderRules('**/attachments');
+
+        expect(matchAttachmentFolderRule(folderPath, folderName, parentPath, parsed.rules)).toBeNull();
+    });
+
+    it.each([
+        '**',
+        '**/',
+        '**/attachments/',
+        '**/attachments/**',
+        '**/Projects/attachments',
+        '**/at*tachments',
+        '**/attachment?',
+        '**/..',
+    ])('rejects ambiguous recursive parent rule %s', (rule) => {
+        const parsed = parseAttachmentFolderRules(rule);
+
+        expect(parsed.rules).toEqual([]);
+        expect(parsed.canonicalRules).toEqual([]);
+        expect(parsed.error).toContain('Invalid recursive parent folder rule');
+    });
+
     it('fails the entire ruleset closed when any rule is invalid', () => {
         const parsed = parseAttachmentFolderRules('.html, ../Attachments');
 
