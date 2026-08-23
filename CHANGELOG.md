@@ -4,6 +4,8 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-08-23
+
 ### Added
 
 - Added recursive parent folder rules such as `**/attachments` to image and attachment cleanup, selecting immediate child folders under every exact matching folder segment at any vault depth.
