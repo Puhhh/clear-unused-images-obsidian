@@ -137,6 +137,7 @@ export const planAttachmentFolders = async (
     const excludedExtensions = splitExcludedExtensions(settings.excludedExtensions);
     const deletableFolders: AttachmentFolderReviewItem[] = [];
     const protectedFolders: AttachmentFolderReviewItem[] = [];
+    const referencedTargetPaths = new Set(referenceEdges.map((edge) => edge.targetPath));
 
     for (const { folder, matchedRule } of candidates) {
         const exclusionReason = getExclusionReason(folder, excludedFolderPaths, excludedExtensions);
@@ -149,13 +150,23 @@ export const planAttachmentFolders = async (
             ({ sourcePath, targetPath }) => isPathInsideFolder(targetPath, folder.path) && !isPathInsideFolder(sourcePath, folder.path)
         );
         if (externalReference) {
-            protectedFolders.push(
-                createReviewItem(
-                    folder,
-                    matchedRule,
-                    `Referenced from ${externalReference.sourcePath} to ${externalReference.targetPath}`
-                )
+            // An external reference always blocks atomic folder deletion. The folder is
+            // still surfaced as protected only when it would have kept genuinely unused
+            // files; a fully referenced folder is simply used and needs no notice.
+            const unreferencedFile = collectDescendants(folder).find(
+                (descendant): descendant is TFile =>
+                    descendant instanceof TFile && !referencedTargetPaths.has(descendant.path)
             );
+            if (unreferencedFile) {
+                protectedFolders.push(
+                    createReviewItem(
+                        folder,
+                        matchedRule,
+                        `Referenced from ${externalReference.sourcePath} to ${externalReference.targetPath}; ` +
+                            `also contains unreferenced file ${unreferencedFile.path}`
+                    )
+                );
+            }
             continue;
         }
 
