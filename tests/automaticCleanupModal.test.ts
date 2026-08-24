@@ -177,6 +177,7 @@ describe('automatic cleanup with fully excluded unused images', () => {
     it('passes the accepted image-folder plan through classification and scoped revalidation', async () => {
         const plugin = createPlugin();
         plugin.settings.imageFolderRules = 'attachments';
+        plugin.settings.clearEmptyFoldersAfterImageCleanup = true;
         const candidateFolderPaths = new Set(['attachments/Project A']);
         const reviewedFolder = {
             path: 'attachments/Project A',
@@ -204,6 +205,163 @@ describe('automatic cleanup with fully excluded unused images', () => {
             'image',
             plugin,
             candidateFolderPaths
+        );
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            [reviewedFolder],
+            ['parent-path:attachments'],
+            ['attachments'],
+            'image'
+        );
+    });
+
+    it('reviews no image parent folders when empty-folder cleanup is disabled', async () => {
+        const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
+        const reviewedFolder = {
+            path: 'attachments/Project A',
+            matchedRule: 'parent path attachments',
+            descendantPaths: ['attachments/Project A/drawing.svg'],
+            fingerprint: 'file:attachments/Project A/drawing.svg:1:1',
+            emptyParentPath: 'attachments',
+        };
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [reviewedFolder],
+            protectedFolders: [],
+            candidateFolderPaths: new Set<string>(),
+            normalizedRules: ['parent-path:attachments'],
+            parentFolderPaths: ['attachments'],
+        });
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [{ path: 'loose.png' } as TFile],
+            excludedAttachments: [],
+        });
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(CleanupReviewModal).toHaveBeenCalledWith(
+            plugin.app,
+            expect.objectContaining({ emptyParentFolderPaths: [] })
+        );
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            [reviewedFolder],
+            ['parent-path:attachments'],
+            [],
+            'image'
+        );
+    });
+
+    it('does not expand reviewed image parent cleanup when the setting is enabled after review', async () => {
+        const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
+        const reviewedFolder = {
+            path: 'attachments/Project A',
+            matchedRule: 'parent path attachments',
+            descendantPaths: ['attachments/Project A/drawing.svg'],
+            fingerprint: 'file:attachments/Project A/drawing.svg:1:1',
+            emptyParentPath: 'attachments',
+        };
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [reviewedFolder],
+            protectedFolders: [],
+            candidateFolderPaths: new Set<string>(),
+            normalizedRules: ['parent-path:attachments'],
+            parentFolderPaths: ['attachments'],
+        });
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [{ path: 'loose.png' } as TFile],
+            excludedAttachments: [],
+        });
+        promptMock.mockImplementation(async () => {
+            plugin.settings.clearEmptyFoldersAfterImageCleanup = true;
+            return true;
+        });
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            [reviewedFolder],
+            ['parent-path:attachments'],
+            [],
+            'image'
+        );
+    });
+
+    it('keeps attachment parent cleanup independent of the image empty-folder setting', async () => {
+        const plugin = createPlugin();
+        plugin.settings.attachmentFolderSuffixes = 'Attachments';
+        const reviewedFolder = {
+            path: 'Attachments/Project A',
+            matchedRule: 'parent path Attachments',
+            descendantPaths: ['Attachments/Project A/index.html'],
+            fingerprint: 'file:Attachments/Project A/index.html:1:1',
+            emptyParentPath: 'Attachments',
+        };
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [reviewedFolder],
+            protectedFolders: [],
+            candidateFolderPaths: new Set(['Attachments/Project A']),
+            normalizedRules: ['parent-path:Attachments'],
+            parentFolderPaths: ['Attachments'],
+        });
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [],
+            excludedAttachments: [],
+        });
+
+        await plugin.clearUnusedAttachments('all', { origin: 'manual' });
+
+        expect(CleanupReviewModal).toHaveBeenCalledWith(
+            plugin.app,
+            expect.objectContaining({ emptyParentFolderPaths: ['Attachments'] })
+        );
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            [reviewedFolder],
+            ['parent-path:Attachments'],
+            ['Attachments'],
+            'attachment'
+        );
+    });
+
+    it('revokes reviewed image parent cleanup when the setting is disabled after review', async () => {
+        const plugin = createPlugin();
+        plugin.settings.imageFolderRules = 'attachments';
+        plugin.settings.clearEmptyFoldersAfterImageCleanup = true;
+        const reviewedFolder = {
+            path: 'attachments/Project A',
+            matchedRule: 'parent path attachments',
+            descendantPaths: ['attachments/Project A/drawing.svg'],
+            fingerprint: 'file:attachments/Project A/drawing.svg:1:1',
+            emptyParentPath: 'attachments',
+        };
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [reviewedFolder],
+            protectedFolders: [],
+            candidateFolderPaths: new Set(['attachments/Project A']),
+            normalizedRules: ['parent-path:attachments'],
+            parentFolderPaths: ['attachments'],
+        });
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [{ path: 'loose.png' } as TFile],
+            excludedAttachments: [],
+        });
+        promptMock.mockImplementation(async () => {
+            plugin.settings.clearEmptyFoldersAfterImageCleanup = false;
+            return true;
+        });
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(CleanupReviewModal).toHaveBeenCalledWith(
+            plugin.app,
+            expect.objectContaining({ emptyParentFolderPaths: ['attachments'] })
         );
         expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
             plugin.app,

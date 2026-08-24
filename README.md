@@ -95,7 +95,7 @@ For example, the parent path rule `attachments` selects each immediate child fol
 - Excluded folder intersections, excluded file extensions, reference-scan failures, and invalid rules protect or stop cleanup using the same safeguards as attachment folder cleanup.
 - Immediately before deleting each reviewed folder, the plugin rescans and verifies its rules, references, exclusions, type, and complete descendant fingerprint. A changed folder is kept and must be reviewed again.
 - Descendants of a selected or protected atomic folder are not also deleted individually during that cleanup run.
-- If every reviewed child selected by a parent path, recursive parent rule, or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was listed in the review. Cleanup never cascades to higher ancestors.
+- If every reviewed child selected by a parent path, recursive parent rule, or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was listed in the review and `Clear empty folders after image cleanup` is enabled. When that setting is off, the reviewed folders are removed but their parents stay. Cleanup never cascades to higher ancestors.
 
 ### Attachment Folders
 
@@ -146,6 +146,7 @@ Enable `Clear empty folders after image cleanup` to remove folders that become e
 - This setting applies to `Clear unused images`, `Clean Images On Vault Load`, and `Clean Images Every X Minutes`.
 - It does not change `Clear unused attachments`.
 - It only removes folders that directly contained images deleted by that cleanup run.
+- During manual `Clear unused images` with image folder rules, it also controls whether a reviewed direct parent folder is removed after its selected folders are deleted and it becomes empty.
 
 ### Excluded Folders
 

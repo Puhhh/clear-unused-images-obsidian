@@ -208,7 +208,10 @@ describe('attachment folder planning', () => {
             { path: 'Work/2024/attachments/Project C/Readme.md', content: 'No image here.' },
             { path: 'attachments2/Project D/image.png' },
         ]);
-        const currentSettings = settings({ imageFolderRules: '**/attachments' });
+        const currentSettings = settings({
+            imageFolderRules: '**/attachments',
+            clearEmptyFoldersAfterImageCleanup: true,
+        });
 
         const plan = await planAttachmentFolders(app, currentSettings, 'image');
 
@@ -246,6 +249,51 @@ describe('attachment folder planning', () => {
         );
         expect(trashedPaths).not.toContain('Projects');
         expect(trashedPaths).not.toContain('Work');
+    });
+
+    it('keeps empty image parent folders when empty-folder cleanup is disabled', async () => {
+        const vault = buildVault([{ path: 'attachments/Project A/drawing.svg' }]);
+        const currentSettings = settings({ imageFolderRules: '**/attachments' });
+        const plan = await planAttachmentFolders(vault.app, currentSettings, 'image');
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            [],
+            'image'
+        );
+
+        expect(result).toMatchObject({
+            deletedFolders: 1,
+            deletedParentFolders: 0,
+            failedParentFolders: 0,
+            skippedParentFolders: 0,
+        });
+        expect(vault.trashedPaths).toEqual(['attachments/Project A']);
+    });
+
+    it('ignores reviewed image parent paths at the deletion boundary when the setting is disabled', async () => {
+        const vault = buildVault([{ path: 'attachments/Project A/drawing.svg' }]);
+        const currentSettings = settings({
+            imageFolderRules: '**/attachments',
+            clearEmptyFoldersAfterImageCleanup: false,
+        });
+        const plan = await planAttachmentFolders(vault.app, currentSettings, 'image');
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths,
+            'image'
+        );
+
+        expect(result.deletedFolders).toBe(1);
+        expect(result.deletedParentFolders).toBe(0);
+        expect(vault.trashedPaths).toEqual(['attachments/Project A']);
     });
 
     it('ignores matching folders that contain no image descendants in image mode', async () => {

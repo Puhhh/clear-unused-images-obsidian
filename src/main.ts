@@ -238,6 +238,10 @@ export default class OzanClearImages extends Plugin {
                     return;
                 }
             }
+            const reviewedParentFolderPaths =
+                folderRuleScope === 'image' && !this.settings.clearEmptyFoldersAfterImageCleanup
+                    ? []
+                    : attachmentFolderPlan.parentFolderPaths;
 
             const { unusedAttachments, excludedAttachments } = await Util.getUnusedAttachments(
                 this.app,
@@ -253,7 +257,7 @@ export default class OzanClearImages extends Plugin {
                         cleanupType: type === 'image' ? 'images' : 'attachments',
                         filePaths: unusedAttachments.map((file) => file.path),
                         folderItems: attachmentFolderPlan.deletableFolders,
-                        emptyParentFolderPaths: attachmentFolderPlan.parentFolderPaths,
+                        emptyParentFolderPaths: reviewedParentFolderPaths,
                         excludedFilePaths: excludedAttachments.map((file) => file.path),
                         protectedFolderItems: attachmentFolderPlan.protectedFolders,
                     }).prompt();
@@ -285,7 +289,7 @@ export default class OzanClearImages extends Plugin {
                               this.settings,
                               attachmentFolderPlan.deletableFolders,
                               attachmentFolderPlan.normalizedRules,
-                              attachmentFolderPlan.parentFolderPaths,
+                              reviewedParentFolderPaths,
                               folderRuleScope
                           )
                         : {

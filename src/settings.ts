@@ -102,7 +102,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                     },
                     {
                         name: 'Clear empty folders after image cleanup',
-                        desc: 'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup.',
+                        desc: 'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup. During reviewed image-folder cleanup, it also controls whether empty direct parents are removed.',
                         aliases: ['delete empty folders', 'folder cleanup'],
                         control: {
                             type: 'toggle',
@@ -272,7 +272,9 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Clear empty folders after image cleanup')
-            .setDesc('After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup.')
+            .setDesc(
+                'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup. During reviewed image-folder cleanup, it also controls whether empty direct parents are removed.'
+            )
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.clearEmptyFoldersAfterImageCleanup).onChange((value) => {
                     this.plugin.settings.clearEmptyFoldersAfterImageCleanup = value;

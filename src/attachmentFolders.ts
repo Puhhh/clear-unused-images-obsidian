@@ -23,6 +23,7 @@ interface AttachmentFolderSettings {
     imageFolderRules: string;
     excludedFolders: string;
     excludedExtensions: string;
+    clearEmptyFoldersAfterImageCleanup: boolean;
 }
 
 export type AtomicFolderRuleScope = 'attachment' | 'image';
@@ -204,6 +205,7 @@ export const deleteReviewedAttachmentFolders = async (
     const reviewedParentPaths = new Set(reviewedParentFolderPaths);
     const successfulParentPaths = new Set<string>();
     const blockedParentPaths = new Set<string>();
+    const canDeleteEmptyParents = ruleScope !== 'image' || settings.clearEmptyFoldersAfterImageCleanup === true;
 
     for (const reviewedFolder of reviewedFolders) {
         const parentPath = reviewedFolder.emptyParentPath;
@@ -239,7 +241,7 @@ export const deleteReviewedAttachmentFolders = async (
         try {
             await app.fileManager.trashFile(currentFolder);
             deletedFolders++;
-            if (parentPath && reviewedParentPaths.has(parentPath)) {
+            if (parentPath && canDeleteEmptyParents && reviewedParentPaths.has(parentPath)) {
                 successfulParentPaths.add(parentPath);
             }
             logLines.push(`[+] Moved ${folderLabel} to Obsidian-configured trash: ${reviewedFolder.path}`);
