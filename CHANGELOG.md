@@ -4,6 +4,12 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-24
+
+### Added
+
+- Added a default-on `Review image folder cleanup` setting. Users may explicitly disable the preview for manual image cleanup with configured image folder rules, while attachment cleanup remains reviewed and automatic cleanup continues to ignore image folder rules. Fixes [#23](https://github.com/Puhhh/clear-unused-images-obsidian/issues/23).
+
 ## [1.10.2] - 2026-08-24
 
 ### Fixed

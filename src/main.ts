@@ -78,6 +78,7 @@ export default class OzanClearImages extends Plugin {
             ...DEFAULT_SETTINGS,
             ...settingsOverride,
             deleteOption: normalizeDeleteOption(settingsOverride.deleteOption),
+            reviewImageFolderCleanup: settingsOverride.reviewImageFolderCleanup !== false,
         };
     }
 
@@ -212,8 +213,7 @@ export default class OzanClearImages extends Plugin {
             folderRuleScope === 'image'
                 ? this.settings.imageFolderRules ?? ''
                 : this.settings.attachmentFolderSuffixes ?? '';
-        const canReviewAtomicFolders = origin === 'manual' && interactive;
-        const shouldReviewImageCleanup = type === 'image' && canReviewAtomicFolders && configuredFolderRules.trim() !== '';
+        const canProcessAtomicFolders = origin === 'manual' && interactive;
         const atomicFolderLabel = type === 'image' ? 'image folder' : 'attachment folder';
         if (this.cleanupInProgress) {
             if (!options.silentIfBusy) {
@@ -231,14 +231,14 @@ export default class OzanClearImages extends Plugin {
                 normalizedRules: [],
                 parentFolderPaths: [],
             };
-            if (canReviewAtomicFolders && configuredFolderRules.trim() !== '') {
+            if (canProcessAtomicFolders && configuredFolderRules.trim() !== '') {
                 attachmentFolderPlan = await planAttachmentFolders(this.app, this.settings, folderRuleScope);
                 if (attachmentFolderPlan.validationError) {
                     new Notice(attachmentFolderPlan.validationError);
                     return;
                 }
             }
-            const reviewedParentFolderPaths =
+            const plannedParentFolderPaths =
                 folderRuleScope === 'image' && !this.settings.clearEmptyFoldersAfterImageCleanup
                     ? []
                     : attachmentFolderPlan.parentFolderPaths;
@@ -252,12 +252,17 @@ export default class OzanClearImages extends Plugin {
             const deletableItemCount = unusedAttachments.length + attachmentFolderPlan.deletableFolders.length;
             const protectedItemCount = excludedAttachments.length + attachmentFolderPlan.protectedFolders.length;
             if (deletableItemCount > 0) {
+                const shouldReviewImageCleanup =
+                    type === 'image' &&
+                    canProcessAtomicFolders &&
+                    configuredFolderRules.trim() !== '' &&
+                    this.settings.reviewImageFolderCleanup !== false;
                 if ((type === 'all' && interactive) || shouldReviewImageCleanup) {
                     const reviewAccepted = await new CleanupReviewModal(this.app, {
                         cleanupType: type === 'image' ? 'images' : 'attachments',
                         filePaths: unusedAttachments.map((file) => file.path),
                         folderItems: attachmentFolderPlan.deletableFolders,
-                        emptyParentFolderPaths: reviewedParentFolderPaths,
+                        emptyParentFolderPaths: plannedParentFolderPaths,
                         excludedFilePaths: excludedAttachments.map((file) => file.path),
                         protectedFolderItems: attachmentFolderPlan.protectedFolders,
                     }).prompt();
@@ -283,13 +288,13 @@ export default class OzanClearImages extends Plugin {
                 }
 
                 const attachmentFolderDeletionResult =
-                    canReviewAtomicFolders && attachmentFolderPlan.deletableFolders.length > 0
+                    canProcessAtomicFolders && attachmentFolderPlan.deletableFolders.length > 0
                         ? await deleteReviewedAttachmentFolders(
                               this.app,
                               this.settings,
                               attachmentFolderPlan.deletableFolders,
                               attachmentFolderPlan.normalizedRules,
-                              reviewedParentFolderPaths,
+                              plannedParentFolderPaths,
                               folderRuleScope
                           )
                         : {
@@ -309,7 +314,7 @@ export default class OzanClearImages extends Plugin {
                 }
                 if (attachmentFolderDeletionResult.skippedFolders > 0) {
                     logs.push(
-                        `[=] ${attachmentFolderDeletionResult.skippedFolders.toString()} ${atomicFolderLabel}(s) changed or became protected after review.`
+                        `[=] ${attachmentFolderDeletionResult.skippedFolders.toString()} ${atomicFolderLabel}(s) changed or became protected before deletion.`
                     );
                 }
                 if (attachmentFolderDeletionResult.failedFolders > 0) {
@@ -360,7 +365,7 @@ export default class OzanClearImages extends Plugin {
                     attachmentFolderDeletionResult.skippedParentFolders > 0
                 ) {
                     new Notice(
-                        `Cleanup finished, but a reviewed ${atomicFolderLabel} or its parent was kept after revalidation. Check logs and rerun cleanup.`
+                        `Cleanup finished, but a planned ${atomicFolderLabel} or its parent was kept after revalidation. Check logs and rerun cleanup.`
                     );
                 } else if (folderCleanupResult?.failedFolders) {
                     new Notice(

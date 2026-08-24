@@ -114,6 +114,7 @@ describe('automatic cleanup with fully excluded unused images', () => {
 
     it('never plans atomic folders during automatic cleanup', async () => {
         const plugin = createPlugin();
+        plugin.settings.reviewImageFolderCleanup = false;
         plugin.settings.imageFolderRules = 'attachments';
         plugin.settings.attachmentFolderSuffixes = '.html';
 
@@ -131,6 +132,17 @@ describe('automatic cleanup with fully excluded unused images', () => {
         );
     });
 
+    it('keeps protected-only feedback when image-folder review is disabled', async () => {
+        const plugin = createPlugin();
+        plugin.settings.reviewImageFolderCleanup = false;
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(CleanupReviewModal).toHaveBeenCalledTimes(1);
+        expect(Util.deleteFilesInTheList).not.toHaveBeenCalled();
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).not.toHaveBeenCalled();
+    });
+
     it('plans image folders only for a manual reviewed image cleanup', async () => {
         const plugin = createPlugin();
         plugin.settings.imageFolderRules = 'attachments';
@@ -143,6 +155,81 @@ describe('automatic cleanup with fully excluded unused images', () => {
             'image'
         );
         expect(CleanupReviewModal).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips review but keeps the atomic image-folder pipeline when explicitly disabled', async () => {
+        const plugin = createPlugin();
+        plugin.settings.reviewImageFolderCleanup = false;
+        plugin.settings.imageFolderRules = 'attachments';
+        plugin.settings.clearEmptyFoldersAfterImageCleanup = true;
+        const reviewedFolder = {
+            path: 'attachments/Project A',
+            matchedRule: 'parent path attachments',
+            descendantPaths: ['attachments/Project A/drawing.svg'],
+            fingerprint: 'file:attachments/Project A/drawing.svg:1:1',
+            emptyParentPath: 'attachments',
+        };
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [reviewedFolder],
+            protectedFolders: [],
+            candidateFolderPaths: new Set(['attachments/Project A']),
+            normalizedRules: ['parent-path:attachments'],
+            parentFolderPaths: ['attachments'],
+        });
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(CleanupReviewModal).not.toHaveBeenCalled();
+        expect(Util.getUnusedAttachments).toHaveBeenCalledWith(
+            plugin.app,
+            'image',
+            plugin,
+            new Set(['attachments/Project A'])
+        );
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).toHaveBeenCalledWith(
+            plugin.app,
+            plugin.settings,
+            [reviewedFolder],
+            ['parent-path:attachments'],
+            ['attachments'],
+            'image'
+        );
+    });
+
+    it('keeps attachment cleanup review mandatory when image-folder review is disabled', async () => {
+        const plugin = createPlugin();
+        plugin.settings.reviewImageFolderCleanup = false;
+        (Util.getUnusedAttachments as ReturnType<typeof vi.fn>).mockResolvedValue({
+            unusedAttachments: [{ path: 'document.pdf' } as TFile],
+            excludedAttachments: [],
+        });
+        promptMock.mockResolvedValue(false);
+
+        await plugin.clearUnusedAttachments('all', { origin: 'manual' });
+
+        expect(CleanupReviewModal).toHaveBeenCalledTimes(1);
+        expect(Util.deleteFilesInTheList).not.toHaveBeenCalled();
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).not.toHaveBeenCalled();
+    });
+
+    it('fails closed before deletion when review is disabled but image-folder rules are invalid', async () => {
+        const plugin = createPlugin();
+        plugin.settings.reviewImageFolderCleanup = false;
+        plugin.settings.imageFolderRules = '**';
+        (AttachmentFolders.planAttachmentFolders as ReturnType<typeof vi.fn>).mockResolvedValue({
+            deletableFolders: [],
+            protectedFolders: [],
+            candidateFolderPaths: new Set<string>(),
+            normalizedRules: [],
+            parentFolderPaths: [],
+            validationError: 'Invalid image folder rule.',
+        });
+
+        await plugin.clearUnusedAttachments('image', { origin: 'manual' });
+
+        expect(Util.getUnusedAttachments).not.toHaveBeenCalled();
+        expect(Util.deleteFilesInTheList).not.toHaveBeenCalled();
+        expect(AttachmentFolders.deleteReviewedAttachmentFolders).not.toHaveBeenCalled();
     });
 
     it('deletes nothing when manual image-folder review is cancelled', async () => {
