@@ -330,6 +330,7 @@ describe('attachment folder planning', () => {
         const { app } = buildVault([
             { path: 'notes/note.md', content, frontmatter: noteFrontmatter },
             { path: 'exports/Test.html/assets/image.png' },
+            { path: 'exports/Test.html/assets/unused.png' },
         ]);
 
         const plan = await planAttachmentFolders(app, settings());
@@ -337,12 +338,16 @@ describe('attachment folder planning', () => {
         expect(plan.deletableFolders).toEqual([]);
         expect(plan.protectedFolders[0]).toMatchObject({ path: 'exports/Test.html' });
         expect(plan.protectedFolders[0].protectedReason).toContain('Referenced from notes/note.md');
+        expect(plan.protectedFolders[0].protectedReason).toContain(
+            'also contains unreferenced file exports/Test.html/assets/unused.png'
+        );
     });
 
     it('protects a folder when an outside note references a markdown descendant', async () => {
         const { app } = buildVault([
             { path: 'notes/note.md', content: '[[exports/Test.html/readme.md]]' },
             { path: 'exports/Test.html/readme.md', content: 'Generated documentation.' },
+            { path: 'exports/Test.html/orphan.bin' },
         ]);
 
         const plan = await planAttachmentFolders(app, settings());
@@ -358,6 +363,7 @@ describe('attachment folder planning', () => {
         const { app } = buildVault([
             { path: 'boards/project.canvas', content: canvasContent },
             { path: 'exports/Test.html/assets/image.png' },
+            { path: 'exports/Test.html/assets/unused.png' },
         ]);
 
         const plan = await planAttachmentFolders(app, settings());
@@ -382,12 +388,40 @@ describe('attachment folder planning', () => {
         const { app } = buildVault([
             { path: 'exports/Test.html2/note.md', content: '[[exports/Test.html/assets/image.png]]' },
             { path: 'exports/Test.html/assets/image.png' },
+            { path: 'exports/Test.html/unused.bin' },
         ]);
 
         const plan = await planAttachmentFolders(app, settings());
 
         expect(plan.deletableFolders).toEqual([]);
         expect(plan.protectedFolders[0].protectedReason).toContain('exports/Test.html2/note.md');
+    });
+
+    it('does not report a fully referenced folder as protected', async () => {
+        const { app } = buildVault([
+            { path: 'notes/note.md', content: '[[exports/Test.html/assets/image.png]]' },
+            { path: 'exports/Test.html/assets/image.png' },
+        ]);
+
+        const plan = await planAttachmentFolders(app, settings());
+
+        expect(plan.deletableFolders).toEqual([]);
+        expect(plan.protectedFolders).toEqual([]);
+        expect(plan.candidateFolderPaths).toEqual(new Set(['exports/Test.html']));
+    });
+
+    it('does not protect a referenced folder whose remaining files are referenced internally', async () => {
+        const { app } = buildVault([
+            { path: 'notes/note.md', content: '[[exports/Test.html/readme.md]]' },
+            { path: 'exports/Test.html/readme.md', content: '[[exports/Test.html/assets/image.png]]' },
+            { path: 'exports/Test.html/assets/image.png' },
+        ]);
+
+        const plan = await planAttachmentFolders(app, settings());
+
+        expect(plan.deletableFolders).toEqual([]);
+        expect(plan.protectedFolders).toEqual([]);
+        expect(plan.candidateFolderPaths).toEqual(new Set(['exports/Test.html']));
     });
 
     it('protects the whole folder when it intersects any exclusion', async () => {
@@ -423,6 +457,27 @@ describe('attachment folder planning', () => {
         const currentSettings = settings();
         const plan = await planAttachmentFolders(vault.app, currentSettings);
         vault.addFile({ path: 'exports/Test.html/added-after-review.txt' });
+
+        const result = await deleteReviewedAttachmentFolders(
+            vault.app,
+            currentSettings,
+            plan.deletableFolders,
+            plan.normalizedRules,
+            plan.parentFolderPaths
+        );
+
+        expect(result).toMatchObject({ deletedFolders: 0, failedFolders: 0, skippedFolders: 1 });
+        expect(vault.trashedPaths).toEqual([]);
+    });
+
+    it('skips deletion when a descendant becomes externally referenced after review', async () => {
+        const vault = buildVault([{ path: 'exports/Test.html/index.html' }]);
+        const currentSettings = settings();
+        const plan = await planAttachmentFolders(vault.app, currentSettings);
+        vault.addFile({
+            path: 'notes/followup.md',
+            content: '[[exports/Test.html/index.html]]',
+        });
 
         const result = await deleteReviewedAttachmentFolders(
             vault.app,
