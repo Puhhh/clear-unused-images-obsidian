@@ -4,6 +4,8 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-08-24
+
 ### Fixed
 
 - Stopped showing the protected-folder notice when every file in a selected atomic folder is referenced. Such a folder is now treated as used, and a referenced folder is listed as protected only when it also contains at least one file that nothing in the vault references. Fixes [#22](https://github.com/Puhhh/clear-unused-images-obsidian/issues/22).
