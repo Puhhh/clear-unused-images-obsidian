@@ -4,6 +4,10 @@ All notable changes to this fork are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Gated empty direct-parent removal during reviewed image-folder cleanup behind `Clear empty folders after image cleanup`. When the setting is off, reviewed image folders are still removed but their direct parents stay; attachment-folder cleanup keeps its existing reviewed parent behavior. Fixes [#24](https://github.com/Puhhh/clear-unused-images-obsidian/issues/24).
+
 ## [1.10.1] - 2026-08-24
 
 ### Fixed
