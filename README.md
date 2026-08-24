@@ -1,7 +1,7 @@
 # Clear Unused Images Plus
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-1.10.1-blue)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-1.10.2-blue)](./manifest.json)
 [![Obsidian](https://img.shields.io/badge/Obsidian-1.8.10%2B-7c3aed?logo=obsidian&logoColor=white)](https://obsidian.md/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tests](https://img.shields.io/badge/tests-vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
