@@ -27,11 +27,12 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - Searchable plugin settings in Obsidian 1.13.0 and newer
 - Deletes files and folders through Obsidian-configured trash
 - Mandatory review before broader attachment cleanup, with optional cleanup logs
-- Separate reviewed folder rules for treating image-containing folders as atomic units during manual image cleanup
+- Separate folder rules for treating image-containing folders as atomic units during manual image cleanup
 - Configurable suffix, parent path, and regular expression rules for treating folder-based attachments as atomic cleanup units
 - Optional cleanup once after vault load
 - Optional recurring cleanup every configured number of minutes
 - Optional empty-folder cleanup after deleted images leave folders empty
+- Optional review bypass for manual image-folder cleanup, with review enabled by default
 - Excluded folder paths with optional subfolder matching
 - Excluded file extensions to always keep certain file types (e.g. unlinked PDFs)
 - Separate commands for unused images, broader unused attachments, and empty folders
@@ -89,13 +90,14 @@ Use `Image folder rules` to treat selected folders and everything inside them as
 For example, the parent path rule `attachments` selects each immediate child folder under `attachments`, but not the parent itself or deeper folders separately. A matching folder is considered only when it contains at least one jpg, jpeg, png, gif, svg, bmp, or webp descendant.
 
 - Image folder rules apply only to manual `Clear unused images`. Vault-load and periodic cleanup never plan or delete matching folders.
-- A manual run with configured image folder rules always opens the review modal before deleting any unused image or selected folder.
+- By default, a manual run with configured image folder rules opens the review modal before deleting any unused image or selected folder.
+- `Review image folder cleanup` can disable that preview for manual image cleanup. When it is off, loose unused images, whole matching folders (including Markdown and non-image descendants), and eligible empty direct parents may move to Obsidian-configured trash without confirmation. `Clear unused attachments` still always requires review, and automatic cleanup still ignores image folder rules.
 - The review shows every descendant that would move to trash, including Markdown files, non-image files, and nested folders. Protected folders appear with the reason they were kept.
 - Any reference from outside the selected folder to any descendant keeps the whole folder out of trash. The folder is listed as protected only when it also contains at least one file that nothing in the vault references; a folder whose every file is referenced is treated as used and shows no protected notice. References between descendants inside the same folder do not protect it.
 - Excluded folder intersections, excluded file extensions, reference-scan failures, and invalid rules protect or stop cleanup using the same safeguards as attachment folder cleanup.
-- Immediately before deleting each reviewed folder, the plugin rescans and verifies its rules, references, exclusions, type, and complete descendant fingerprint. A changed folder is kept and must be reviewed again.
+- Immediately before deleting each selected folder, the plugin rescans and verifies its rules, references, exclusions, type, and complete descendant fingerprint. A changed folder is kept and must be processed again.
 - Descendants of a selected or protected atomic folder are not also deleted individually during that cleanup run.
-- If every reviewed child selected by a parent path, recursive parent rule, or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was listed in the review and `Clear empty folders after image cleanup` is enabled. When that setting is off, the reviewed folders are removed but their parents stay. Cleanup never cascades to higher ancestors.
+- If every child selected by a parent path, recursive parent rule, or regular expression is removed and their direct parent becomes empty, that parent may also be moved to trash when it was included in the cleanup plan and `Clear empty folders after image cleanup` is enabled. When that setting is off, the selected folders are removed but their parents stay. Cleanup never cascades to higher ancestors.
 
 ### Attachment Folders
 
@@ -146,7 +148,7 @@ Enable `Clear empty folders after image cleanup` to remove folders that become e
 - This setting applies to `Clear unused images`, `Clean Images On Vault Load`, and `Clean Images Every X Minutes`.
 - It does not change `Clear unused attachments`.
 - It only removes folders that directly contained images deleted by that cleanup run.
-- During manual `Clear unused images` with image folder rules, it also controls whether a reviewed direct parent folder is removed after its selected folders are deleted and it becomes empty.
+- During manual `Clear unused images` with image folder rules, it also controls whether an eligible direct parent folder is removed after its selected folders are deleted and it becomes empty.
 
 ### Excluded Folders
 

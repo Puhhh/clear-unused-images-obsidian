@@ -19,6 +19,7 @@ export interface OzanClearImagesSettings {
     autoCleanEveryXMinutes: boolean;
     autoCleanIntervalMinutes: number;
     clearEmptyFoldersAfterImageCleanup: boolean;
+    reviewImageFolderCleanup: boolean;
     imageFolderRules: string;
     attachmentFolderSuffixes: string;
 }
@@ -44,6 +45,7 @@ export const DEFAULT_SETTINGS: OzanClearImagesSettings = {
     autoCleanEveryXMinutes: AUTO_CLEAN_EVERY_X_MINUTES_DEFAULT,
     autoCleanIntervalMinutes: AUTO_CLEAN_INTERVAL_MINUTES_DEFAULT,
     clearEmptyFoldersAfterImageCleanup: false,
+    reviewImageFolderCleanup: true,
     imageFolderRules: '',
     attachmentFolderSuffixes: '',
 };
@@ -102,7 +104,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                     },
                     {
                         name: 'Clear empty folders after image cleanup',
-                        desc: 'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup. During reviewed image-folder cleanup, it also controls whether empty direct parents are removed.',
+                        desc: 'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup. During image-folder cleanup, it also controls whether empty direct parents are removed.',
                         aliases: ['delete empty folders', 'folder cleanup'],
                         control: {
                             type: 'toggle',
@@ -122,8 +124,17 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
                         },
                     },
                     {
+                        name: 'Review image folder cleanup',
+                        desc: 'Review unused images and matching image folders before a manual cleanup deletes them. Turning this off skips the preview and may move loose images, whole matching folders (including Markdown and other files), and eligible empty direct parents to Obsidian-configured trash. Automatic cleanup still ignores image folder rules.',
+                        aliases: ['confirm image cleanup', 'folder cleanup preview', 'review unused images'],
+                        control: {
+                            type: 'toggle',
+                            key: 'reviewImageFolderCleanup',
+                        },
+                    },
+                    {
                         name: 'Image folder rules',
-                        desc: 'Select atomic folders during manual clear unused images. Use a case-sensitive parent path such as attachments, a recursive parent such as **/attachments, or an anchored safe regular expression. Matching folders must contain an image and are always reviewed before deletion. Automatic image cleanup never uses these rules.',
+                        desc: 'Select atomic folders during manual clear unused images. Use a case-sensitive parent path such as attachments, a recursive parent such as **/attachments, or an anchored safe regular expression. Matching folders must contain an image. Automatic image cleanup never uses these rules.',
                         aliases: ['folder images', 'atomic image folders', 'image folder paths', 'image regex', 'recursive folders'],
                         control: {
                             type: 'textarea',
@@ -181,6 +192,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             case 'autoCleanOnVaultLoad':
             case 'autoCleanEveryXMinutes':
             case 'clearEmptyFoldersAfterImageCleanup':
+            case 'reviewImageFolderCleanup':
             case 'excludeSubfolders':
                 if (typeof value !== 'boolean') {
                     return;
@@ -273,7 +285,7 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName('Clear empty folders after image cleanup')
             .setDesc(
-                'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup. During reviewed image-folder cleanup, it also controls whether empty direct parents are removed.'
+                'After unused images are deleted, also remove folders that became empty. This applies to manual and automatic image cleanup. During image-folder cleanup, it also controls whether empty direct parents are removed.'
             )
             .addToggle((toggle) =>
                 toggle.setValue(this.plugin.settings.clearEmptyFoldersAfterImageCleanup).onChange((value) => {
@@ -301,9 +313,21 @@ export class OzanClearImagesSettingsTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName('Review image folder cleanup')
+            .setDesc(
+                'Review unused images and matching image folders before a manual cleanup deletes them. Turning this off skips the preview and may move loose images, whole matching folders (including Markdown and other files), and eligible empty direct parents to Obsidian-configured trash. Automatic cleanup still ignores image folder rules.'
+            )
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.reviewImageFolderCleanup !== false).onChange((value) => {
+                    this.plugin.settings.reviewImageFolderCleanup = value;
+                    void this.plugin.saveSettings();
+                })
+            );
+
+        new Setting(containerEl)
             .setName('Image folder rules')
             .setDesc(
-                'Select atomic folders during manual clear unused images. Enter comma-separated or one-per-line rules: a legacy suffix, a case-sensitive parent path, a recursive parent such as **/attachments, or an anchored case-sensitive regular expression. A matching folder must contain an image. The review dialog shows the whole folder and all descendants before deletion. Automatic image cleanup never uses these rules.'
+                'Select atomic folders during manual clear unused images. Enter comma-separated or one-per-line rules: a legacy suffix, a case-sensitive parent path, a recursive parent such as **/attachments, or an anchored case-sensitive regular expression. A matching folder must contain an image. Automatic image cleanup never uses these rules.'
             )
             .addTextArea((text) =>
                 text

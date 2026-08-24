@@ -4,7 +4,7 @@ import type { App } from 'obsidian';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type OzanClearImages from '../src/main';
+import OzanClearImages from '../src/main';
 import { DEFAULT_SETTINGS, OzanClearImagesSettingsTab } from '../src/settings';
 
 describe('plugin settings defaults', () => {
@@ -13,6 +13,38 @@ describe('plugin settings defaults', () => {
 
         expect(settingsSource).toMatch(/clearEmptyFoldersAfterImageCleanup:\s*boolean/);
         expect(settingsSource).toMatch(/clearEmptyFoldersAfterImageCleanup:\s*false/);
+    });
+
+    it('keeps image folder cleanup review enabled by default', () => {
+        expect(DEFAULT_SETTINGS.reviewImageFolderCleanup).toBe(true);
+    });
+
+    it.each([
+        ['missing', {}],
+        ['null', { reviewImageFolderCleanup: null }],
+        ['string false', { reviewImageFolderCleanup: 'false' }],
+    ])('fails closed when the persisted review setting is %s', async (_label, loadedSettings) => {
+        const plugin = new OzanClearImages(
+            {} as ConstructorParameters<typeof OzanClearImages>[0],
+            {} as ConstructorParameters<typeof OzanClearImages>[1]
+        );
+        plugin.loadData = vi.fn(async () => loadedSettings);
+
+        await plugin.loadSettings();
+
+        expect(plugin.settings.reviewImageFolderCleanup).toBe(true);
+    });
+
+    it('allows only literal false to disable image folder cleanup review', async () => {
+        const plugin = new OzanClearImages(
+            {} as ConstructorParameters<typeof OzanClearImages>[0],
+            {} as ConstructorParameters<typeof OzanClearImages>[1]
+        );
+        plugin.loadData = vi.fn(async () => ({ reviewImageFolderCleanup: false }));
+
+        await plugin.loadSettings();
+
+        expect(plugin.settings.reviewImageFolderCleanup).toBe(false);
     });
 
     it('uses Obsidian-configured trash by default', () => {
@@ -61,6 +93,7 @@ describe('plugin settings defaults', () => {
             'Clean images every X minutes',
             'Clear empty folders after image cleanup',
             'Cleanup interval in minutes',
+            'Review image folder cleanup',
             'Image folder rules',
             'Attachment folder rules',
             'Excluded folder full paths',
@@ -89,7 +122,9 @@ describe('plugin settings defaults', () => {
         await settingsTab.setControlValue('ribbonIcon', true);
         expect(plugin.settings.ribbonIcon).toBe(true);
         expect(plugin.refreshIconRibbon).toHaveBeenCalledTimes(1);
-        expect(plugin.saveSettings).toHaveBeenCalledTimes(3);
+        await settingsTab.setControlValue('reviewImageFolderCleanup', false);
+        expect(plugin.settings.reviewImageFolderCleanup).toBe(false);
+        expect(plugin.saveSettings).toHaveBeenCalledTimes(4);
     });
 
     it('rejects unknown or wrongly typed declarative setting values', async () => {
